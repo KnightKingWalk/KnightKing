@@ -1,0 +1,11 @@
+SET(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -DCMAKE_BUILD_TYPE=Debug")
+SET(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -DUNIT_TEST")
+SET(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -DCOLLECT_WALK_SEQUENCE")
+SET(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -ggdb")
+
+add_test_exec(test_storage)
+add_test_exec(test_graph)
+
+add_test_exec(test_deepwalk)
+add_test_exec(test_ppr)
+add_test_exec(test_node2vec)

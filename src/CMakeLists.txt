@@ -1,0 +1,6 @@
+IF(WITH_UNIT_TEST)
+    add_subdirectory(tests)
+ENDIF()
+add_subdirectory(apps)
+add_subdirectory(tools)
+add_subdirectory(examples)
