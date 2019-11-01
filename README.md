@@ -104,27 +104,39 @@ There is a text file containing a sample graph, but node2vec takes a binary file
 Then we can invoke node2vec:
 
 ```
-./bin/node2vec -g ./karate.data -v 34 -w 34 -s weighted -l 80 -p 2 -q 0.5 -o ./out
+mkdir out
+./bin/node2vec -g ./karate.data -v 34 -w 5 -s weighted -l 10 -p 2 -q 0.5 -o ./out
 ```
 
 See the random walk output:
 
 ```
-cat ./out/path_0.txt
+~/graph/KnightKing/build$ cat ./out/path_0.txt
+0 11 0 5 16 6 4 6 16 6 4 6 16
+1 11 1 21 0 2 8 30 33 15 32 8 32
+2 11 2 13 0 10 0 31 0 6 16 5 0
+3 11 3 12 0 11 0 17 1 2 9 33 30
+4 11 4 0 1 21 1 17 1 2 8 32 2
 ```
+
+There are 5 lines, each representing the path for one walker.
+
+For each line, the first integer denotes the walker ID. The second integer denotes the length of the path. Next are (length + 1) integer, denotes the path, i.e. the vertex ID in the order the walker has visited. 
+
+Note that you may have an output different from above example. Since this is a random walk, so the output is also random.
 
 ### Run in Distributed Environment
 
 First, copy the graph file to the same path of each node, or simply place it to a shared file system. Second, write each node's IP address to a text file (e.g. ./hosts). Then use MPI to run the application. Suppose the graph file is placed at ./karate.data. For OpenMPI:
 
 ```
-mpiexec -npernode 1 -hostfile ./hosts ./bin/node2vec -g ./karate.data -v 34 -w 34 -s weighted -l 80 -p 2 -q 0.5 -o ./a.out
+mpiexec -npernode 1 -hostfile ./hosts ./bin/node2vec -g ./karate.data -v 34 -w 34 -s weighted -l 80 -p 2 -q 0.5 -o ./out
 ```
 
 For MPICH:
 
 ```
-mpiexec -np 1 -hostfile ./hosts ./bin/node2vec -g ./karate.data -v 34 -w 34 -s weighted -l 80 -p 2 -q 0.5 -o ./a.out
+mpiexec -np 1 -hostfile ./hosts ./bin/node2vec -g ./karate.data -v 34 -w 34 -s weighted -l 80 -p 2 -q 0.5 -o ./out
 ```
 
 The "-npernode 1" or -"np 1" setting is recommended, which tells MPI to instantiate one instance per node. KnightKing will automatically handle the concurrency within each node. Instantiating more than one instances per node may make the graph more fragmented and thus hinge the performance.
@@ -397,23 +409,88 @@ void second_order_random_walk(
 
 ### Miscellaneous
 
+#### Load Graph
+
 **load_graph**: This function takes the vertex number and graph data file path as input, and loads the graph into memory.
 
 ```c++
 void load_graph(vertex_id_t vertex_num, const char* graph_file_path);
 ```
 
+#### Set Concurrency
 **set_concurrency**: This function sets the number of threads for concurrent task execution. The default setting is std::thread::hardware_concurrency() - 1, i.e. the number of cores minus one. This number is set slightly lower than core number in default, since there are two additional threads that are responsible for message sending and receiving.
 
 ```c++
 void set_concurrency(int worker_num);
 ```
 
+#### Output
+
 **set_output**: This function tells KnightKing to record the walking paths for the walkers.
 
 **get_path_data**: This function returns *PathSet* object, which records the walking paths for the walkers. The detail of *PathSet* will be given later.
 
-**dump_path_data**: This function takes a file path as input, and dump walking paths to that path.
+**dump_path_data**: This function takes a *PathSet* object and a directory as input, and dump walking paths to that directory.
+
+**free_path_data**: If users get a *PathSet* object via *get_path_data* function, then must manually free the object by this function.
+
+A sample usage is:
+
+```c++
+graph.set_output();
+graph.random_walk(extension_comp);
+PathSet path_data = graph.get_path_data();
+graph.dump_path_data(path_data, opt.output_path.c_str());
+graph.free_path_data(path_data);
+```
+
+Instead of dumping the paths, users can directly pass the in-memory output data to other applications. The paths are stored in *PathSet* object:
+
+```c++
+struct PathSet
+{
+    int seg_num;
+    vertex_id_t **path_set;
+    walker_id_t **walker_id;
+    vertex_id_t ***path_begin;
+    vertex_id_t ***path_end;
+    step_t **path_length;
+    walker_id_t *path_num;
+}
+```
+
+The paths are stored distributedly, i.e., each KnightKing instance holds a different part of the paths. Further more, in each instance, the paths are stored in several segments. But it is guaranteed that the path of the same walker is located at the continuous space.
+
+Each *PathSet* stores the paths for one KnightKing instance.
+
+The *seg_num* specifies how many segments there are;
+
+The *path_num\[i\]* specifies how many paths the i-th segment have;
+
+The *walker_id\[i\]\[j\]* specifies the walker id of the j-th path of the i-th segment;
+
+The *path_length\[i\]\[j\]* specifies the path length of the j-th path of the i-th segment;
+
+The *path_begin\[i\]\[j\]* and *path_end\[i\]\[j\]* specifies the begin and end of the location of the j-th path of the i-th segment.
+
+A sample traversing code:
+
+```c++
+PathSet path_data = graph.get_path_data();
+for (int i = 0; i < path_data.seg_num; i++)
+{
+	for (walker_id_t j = 0; j < path_data.path_num[wo_i]; j++)
+	{
+		printf("%u %u", path_data.walker_id[i][j], path_data.path_length[i][j]);
+		for (step_t k = 0; k < path_data.path_length[i][j]; k++)
+		{
+			printf(" %u", *(path_data.path_begin[i][j] + k));
+		}
+		printf("\n");
+	}
+}
+```
+
 ### Constants
 
 There are several numerical constants that can be adjusted for performance tuning. They are defined in *include/constants.hpp*.

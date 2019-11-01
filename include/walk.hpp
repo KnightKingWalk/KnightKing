@@ -411,7 +411,12 @@ public:
 
     void dump_path_data(PathSet ps, std::string output_path_root)
     {
-        std::string local_output_path = output_path_root + std::string("_") + std::to_string(this->local_partition_id);
+#ifdef _WIN32
+        std::string fsep = std::string("\\");
+#else
+        std::string fsep = std::string("/");
+#endif
+        std::string local_output_path = output_path_root + fsep + std::string("path_") + std::to_string(this->local_partition_id) + std::string(".txt");
         _internal_write_path_data(ps, local_output_path.c_str());
     }
 

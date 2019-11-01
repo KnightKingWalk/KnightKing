@@ -37,7 +37,7 @@ public:
     {}
     virtual void parse(int argc, char** argv)
     {
-        TruncatedRandomWalkOptionHelper::parse(argc, argv);
+        STruncatedRandomWalkOptionHelper::parse(argc, argv);
 
         assert(schemes_path_flag);
         schemes_path = args::get(schemes_path_flag);

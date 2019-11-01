@@ -37,7 +37,7 @@ public:
     {}
     virtual void parse(int argc, char** argv)
     {
-        RandomWalkOptionHelper::parse(argc, argv);
+        SRandomWalkOptionHelper::parse(argc, argv);
 
         assert(terminate_prob_flag);
         terminate_prob = args::get(terminate_prob_flag);

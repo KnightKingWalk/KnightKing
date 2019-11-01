@@ -40,7 +40,7 @@ public:
     {}
     virtual void parse(int argc, char** argv)
     {
-        TruncatedRandomWalkOptionHelper::parse(argc, argv);
+        STruncatedRandomWalkOptionHelper::parse(argc, argv);
 
         assert(p_flag);
         p = args::get(p_flag);
@@ -84,6 +84,7 @@ int main(int argc, char** argv)
     Node2vecOptionHelper opt;
     opt.parse(argc, argv);
 
+    puts(opt.static_comp.c_str());
     if (opt.static_comp.compare("weighted") == 0)
     {
         WalkEngine<real_t, Node2vecState> graph;
