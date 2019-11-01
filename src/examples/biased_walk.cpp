@@ -34,15 +34,25 @@ int main(int argc, char** argv)
 
     WalkEngine<real_t, EmptyData> graph;
     graph.load_graph(opt.v_num, opt.graph_path.c_str());
+    if (!opt.output_path.empty())
+    {
+        graph.set_output();
+    }
     graph.set_walkers(opt.walker_num);
     auto extension_comp = [&] (Walker<EmptyData>& walker, vertex_id_t current_v)
     {
-        return walker.step >= 10 ? 0.0 : 1.0; /*walk 10 steps then terminate*/
+        return walker.step >= opt.walk_length ? 0.0 : 1.0; /*walk opt.walk_length steps then terminate*/
     };
     auto static_comp = [&] (vertex_id_t v, AdjUnit<real_t> *edge)
     {
         return edge->data; /*edge->data is a real number denoting edge weight*/
     };
     graph.random_walk(extension_comp, static_comp);
+    if (!opt.output_path.empty())
+    {
+        PathSet path_data = graph.get_path_data();
+        graph.dump_path_data(path_data, opt.output_path.c_str());
+        graph.free_path_data(path_data);
+    }
     return 0;
 }

@@ -42,16 +42,6 @@
 #include "test_rw.hpp"
 #include "../apps/ppr.hpp"
 
-void invoke_ppr(WalkEngine<EmptyData, EmptyData> *graph, walker_id_t walker_num, real_t terminate_prob)
-{
-    unbiased_ppr(graph, walker_num, terminate_prob);
-}
-
-void invoke_ppr(WalkEngine<real_t, EmptyData> *graph, walker_id_t walker_num, real_t terminate_prob)
-{
-    biased_ppr(graph, walker_num, terminate_prob);
-}
-
 template<typename edge_data_t>
 void test_ppr(vertex_id_t v_num, int worker_number)
 {
@@ -64,7 +54,7 @@ void test_ppr(vertex_id_t v_num, int worker_number)
     walker_id_t walker_num = graph.get_vertex_num() * 50 + graph.get_edge_num() * 10 + rand() % 100;
     MPI_Bcast(&walker_num, 1, get_mpi_data_type<walker_id_t>(), 0, MPI_COMM_WORLD);
 
-    invoke_ppr(&graph, walker_num, terminate_prob);
+    ppr(&graph, walker_num, terminate_prob);
     graph.collect_walk_sequence(rw_sequences);
 
     if (get_mpi_rank() == 0)

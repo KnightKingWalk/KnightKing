@@ -42,17 +42,6 @@
 #include "test_rw.hpp"
 #include "../apps/node2vec.hpp"
 
-
-void invoke_node2vec(WalkEngine<EmptyData, Node2vecState> *graph, Node2vecConf n2v_conf)
-{
-    unbiased_node2vec(graph, n2v_conf);
-}
-
-void invoke_node2vec(WalkEngine<real_t, Node2vecState> *graph, Node2vecConf n2v_conf)
-{
-    biased_node2vec(graph, n2v_conf);
-}
-
 template<typename edge_data_t>
 void test_node2vec(vertex_id_t v_num, int worker_number)
 {
@@ -61,29 +50,21 @@ void test_node2vec(vertex_id_t v_num, int worker_number)
     graph.load_graph(v_num, test_data_file);
 
     Node2vecConf n2v_conf;
-    real_t p, q;
+    n2v_conf.walk_length = 80 + rand() % 20;
+    n2v_conf.walker_num = graph.get_vertex_num() * 500 + graph.get_edge_num() * 100 + rand() % 100;
+    n2v_conf.p = rand() % 4 + 1;
+    n2v_conf.q = rand() % 4 + 1;
     if (rand() % 2 == 0)
     {
-        p = 2;
-        q = 0.5;
-    } else
-    {
-        p = 0.5;
-        q = 2;
+        n2v_conf.p = 1.0 / n2v_conf.p;
     }
-    MPI_Bcast(&p, 1, get_mpi_data_type<real_t>(), 0, MPI_COMM_WORLD);
-    MPI_Bcast(&q, 1, get_mpi_data_type<real_t>(), 0, MPI_COMM_WORLD);
-    n2v_conf.p = p;
-    n2v_conf.q = q;
+    if (rand() % 2 == 0)
+    {
+        n2v_conf.q = 1.0 / n2v_conf.q;
+    }
+    MPI_Bcast(&n2v_conf, sizeof(n2v_conf), get_mpi_data_type<char>(), 0, MPI_COMM_WORLD);
 
-    step_t walk_length = 80 + rand() % 20;
-    MPI_Bcast(&walk_length, 1, get_mpi_data_type<step_t>(), 0, MPI_COMM_WORLD);
-    walker_id_t walker_num = graph.get_vertex_num() * 500 + graph.get_edge_num() * 100 + rand() % 100;
-    MPI_Bcast(&walker_num, 1, get_mpi_data_type<walker_id_t>(), 0, MPI_COMM_WORLD);
-    n2v_conf.walker_num = walker_num;
-    n2v_conf.walk_length = walk_length;
-
-    invoke_node2vec(&graph, n2v_conf);
+    node2vec(&graph, n2v_conf);
     std::vector<std::vector<vertex_id_t> > rw_sequences;
     graph.collect_walk_sequence(rw_sequences);
 
@@ -92,7 +73,7 @@ void test_node2vec(vertex_id_t v_num, int worker_number)
         Edge<edge_data_t> *std_edges;
         edge_id_t std_edge_num;
         read_graph(test_data_file, 0, 1, std_edges, std_edge_num);
-        check_node2vec_random_walk(v_num, std_edges, std_edge_num, p, q, rw_sequences);
+        check_node2vec_random_walk(v_num, std_edges, std_edge_num, n2v_conf.p, n2v_conf.q, rw_sequences);
     }
 }
 

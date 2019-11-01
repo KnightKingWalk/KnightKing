@@ -25,40 +25,23 @@
 #pragma once
 
 #include "walk.hpp"
+#include "static_comp.hpp"
 
-void unbiased_deepwalk(WalkEngine<EmptyData, EmptyData> *graph, walker_id_t walker_num, step_t walk_length)
+template <typename edge_data_t>
+void deepwalk(WalkEngine<edge_data_t, EmptyData> *graph, walker_id_t walker_num, step_t walk_length)
 {
     MPI_Barrier(MPI_COMM_WORLD);
     Timer timer;
 
     graph->set_walkers(walker_num);
-    graph->random_walk(
-        [&] (Walker<EmptyData>& walker, vertex_id_t current_v)
-        {
+    auto extension_comp = [&] (Walker<EmptyData>& walker, vertex_id_t current_v) {
             return walker.step >= walk_length ? 0.0 : 1.0;
-        }
-    );
+    };
+    auto static_comp = get_trivial_static_comp(graph);
 
-#ifndef UNIT_TEST
-    printf("total time %lfs\n", timer.duration());
-#endif
-}
-
-void biased_deepwalk(WalkEngine<real_t, EmptyData> *graph, walker_id_t walker_num, step_t walk_length)
-{
-    MPI_Barrier(MPI_COMM_WORLD);
-    Timer timer;
-
-    graph->set_walkers(walker_num);
     graph->random_walk(
-        [&] (Walker<EmptyData>& walker, vertex_id_t current_v)
-        {
-            return walker.step >= walk_length ? 0.0 : 1.0;
-        },
-        [&] (vertex_id_t v, AdjUnit<real_t> *edge)
-        {
-            return edge->data;
-        }
+        extension_comp,
+        static_comp
     );
 
 #ifndef UNIT_TEST

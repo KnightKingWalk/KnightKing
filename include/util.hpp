@@ -105,8 +105,11 @@ public:
         data = nullptr;
         is_private_data = false;
     }
-    MessageBuffer(size_t _sz, void* _data = nullptr)
+    MessageBuffer(size_t _sz, void* _data = nullptr) : MessageBuffer()
     {
+#ifdef UNIT_TEST
+        assert(data == nullptr);
+#endif
         alloc(_sz, _data);
     }
     void alloc(size_t _sz, void *_data = nullptr)
@@ -119,10 +122,7 @@ public:
         count = 0;
         if (_data == nullptr)
         {
-            if (sz != 0)
-            {
-                data = new char[sz];
-            }
+            data = new char[sz];
             is_private_data = true;
         } else
         {
@@ -142,9 +142,7 @@ public:
     template<typename data_t>
     void write(data_t *val)
     {
-        data_t* arr = (data_t*)data;
-        arr[count++] = val;
-        count ++;
+        ((data_t*)data)[count++] = *val;
 #ifdef UNIT_TEST
         self_check<data_t>();
 #endif

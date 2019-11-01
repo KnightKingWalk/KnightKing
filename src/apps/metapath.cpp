@@ -26,7 +26,7 @@
 #include "option_helper.hpp"
 #include "metapath.hpp"
 
-class MetapathOptionHelper : public TruncatedRandomWalkOptionHelper
+class MetapathOptionHelper : public STruncatedRandomWalkOptionHelper
 {
 private:
     args::ValueFlag<std::string> schemes_path_flag;
@@ -37,12 +37,29 @@ public:
     {}
     virtual void parse(int argc, char** argv)
     {
-        TruncatedRandomWalkOptionHelper::parse(argc, argv);
+        STruncatedRandomWalkOptionHelper::parse(argc, argv);
 
         assert(schemes_path_flag);
         schemes_path = args::get(schemes_path_flag);
     }
 };
+
+template<typename edge_data_t>
+void run(WalkEngine<edge_data_t,MetapathState > *graph, MetapathOptionHelper *opt)
+{
+    graph->load_graph(opt->v_num, opt->graph_path.c_str());
+    if (!opt->output_path.empty())
+    {
+        graph->set_output();
+    }
+    metapath(graph, read_metapath_schemes(opt->schemes_path.c_str()), opt->walker_num, opt->walk_length);
+    if (!opt->output_path.empty())
+    {
+        PathSet path_data = graph->get_path_data();
+        graph->dump_path_data(path_data, opt->output_path.c_str());
+        graph->free_path_data(path_data);
+    }
+}
 
 int main(int argc, char** argv)
 {
@@ -54,13 +71,11 @@ int main(int argc, char** argv)
     if (opt.static_comp.compare("weighted") == 0)
     {
         WalkEngine<WeightedMetaData, MetapathState> graph;
-        graph.load_graph(opt.v_num, opt.graph_path.c_str());
-        biased_metapath(&graph, read_metapath_schemes(opt.schemes_path.c_str()), opt.walker_num, opt.walk_length);
+        run(&graph, &opt);
     } else if(opt.static_comp.compare("unweighted") == 0)
     {
         WalkEngine<int, MetapathState> graph;
-        graph.load_graph(opt.v_num, opt.graph_path.c_str());
-        unbiased_metapath(&graph, read_metapath_schemes(opt.schemes_path.c_str()), opt.walker_num, opt.walk_length);
+        run(&graph, &opt);
     } else
     {
         exit(1);

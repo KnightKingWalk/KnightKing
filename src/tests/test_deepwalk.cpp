@@ -42,16 +42,6 @@
 #include "test_rw.hpp"
 #include "../apps/deepwalk.hpp"
 
-void invoke_deepwalk(WalkEngine<EmptyData, EmptyData> *graph, walker_id_t walker_num, step_t walk_length)
-{
-    unbiased_deepwalk(graph, walker_num, walk_length);
-}
-
-void invoke_deepwalk(WalkEngine<real_t, EmptyData> *graph, walker_id_t walker_num, step_t walk_length)
-{
-    biased_deepwalk(graph, walker_num, walk_length);
-}
-
 template<typename edge_data_t>
 void test_deepwalk(vertex_id_t v_num, int worker_number)
 {
@@ -65,7 +55,7 @@ void test_deepwalk(vertex_id_t v_num, int worker_number)
     walker_id_t walker_num = graph.get_vertex_num() * 50 + graph.get_edge_num() * 10 + rand() % 100;
     MPI_Bcast(&walker_num, 1, get_mpi_data_type<walker_id_t>(), 0, MPI_COMM_WORLD);
 
-    invoke_deepwalk(&graph, walker_num, walk_length);
+    deepwalk(&graph, walker_num, walk_length);
     std::vector<std::vector<vertex_id_t> > rw_sequences;
     graph.collect_walk_sequence(rw_sequences);
 

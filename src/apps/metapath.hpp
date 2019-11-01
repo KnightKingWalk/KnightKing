@@ -52,79 +52,46 @@ std::vector<std::vector<scheme_mask_t> > get_scheme_mask(std::vector<std::vector
     return ret;
 }
 
-void unbiased_metapath(WalkEngine<int, MetapathState> *graph, std::vector<std::vector<std::vector<bool> > > schemes, walker_id_t walker_num, step_t walk_length)
+template<typename walker_state_t>
+std::function<real_t(vertex_id_t, AdjUnit<int>*)> get_metapath_static_comp(WalkEngine<int, walker_state_t> *graph)
 {
-    MPI_Barrier(MPI_COMM_WORLD);
-    Timer timer;
-
-    auto scheme_masks = get_scheme_mask(schemes);
-    scheme_mask_t* vertex_masks = graph->alloc_vertex_array<scheme_mask_t>();
-    graph->template process_vertices<vertex_id_t>(
-        [&] (vertex_id_t v_id)
-        {
-            vertex_masks[v_id] = 0;
-            for (auto p = graph->csr->adj_lists[v_id].begin; p != graph->csr->adj_lists[v_id].end; p++)
-            {
-                vertex_masks[v_id] |= (1 << p->data);
-            }
-            return 0;
-        }
-    );
-    graph->set_walkers(
-        walker_num,
-        [&] (Walker<MetapathState> &walker, vertex_id_t start_vertex)
-        {
-            walker.data.scheme_id = graph->get_thread_local_rand_gen()->gen(schemes.size());
-            walker.data.state = 0;
-        },
-        [&] (Walker<MetapathState> &walker, vertex_id_t current_v, AdjUnit<int> *edge)
-        {
-            walker.data.state = (walker.data.state + 1) % schemes[walker.data.scheme_id].size();
-        }
-    );
-    graph->random_walk(
-        [&] (Walker<MetapathState> &walker, vertex_id_t current_v)
-        {
-            return (walker.step >= walk_length || !(vertex_masks[current_v] & scheme_masks[walker.data.scheme_id][walker.data.state])) ? 0.0 : 1.0;
-        },
-        nullptr,
-        [&] (Walker<MetapathState> &walker, vertex_id_t current_v, AdjUnit<int> *edge)
-        {
-            if (schemes[walker.data.scheme_id][walker.data.state][edge->data])
-            //if (sh[walker.data.scheme_id][walker.data.state] & (1 << edge->data))
-            {
-                return 1.0;
-            } else
-            {
-                return 0.0;
-            }
-        },
-        [&] (vertex_id_t v_id, AdjList<int> *adj_lists)
-        {
-            return 1.0;
-        }
-    );
-    graph->dealloc_vertex_array(vertex_masks);
-
-#ifndef UNIT_TEST
-    printf("total time %lfs\n", timer.duration());
-#endif
+    return nullptr;
 }
 
-void biased_metapath(WalkEngine<WeightedMetaData, MetapathState> *graph, std::vector<std::vector<std::vector<bool> > > schemes, walker_id_t walker_num, step_t walk_length)
+template<typename walker_state_t>
+std::function<real_t(vertex_id_t, AdjUnit<WeightedMetaData>*)> get_metapath_static_comp(WalkEngine<WeightedMetaData, walker_state_t> *graph)
+{
+    auto static_comp = [&] (vertex_id_t v, AdjUnit<WeightedMetaData> *edge) {
+        return edge->data.weight;
+    };
+    return static_comp;
+}
+
+int get_edge_meta(AdjUnit<int> *edge)
+{
+    return edge->data;
+}
+
+int get_edge_meta(AdjUnit<WeightedMetaData> *edge)
+{
+    return edge->data.meta_info;
+}
+
+template<typename edge_data_t>
+void metapath(WalkEngine<edge_data_t, MetapathState> *graph, std::vector<std::vector<std::vector<bool> > > schemes, walker_id_t walker_num, step_t walk_length)
 {
     MPI_Barrier(MPI_COMM_WORLD);
     Timer timer;
 
     auto scheme_masks = get_scheme_mask(schemes);
-    scheme_mask_t* vertex_masks = graph->alloc_vertex_array<scheme_mask_t>();
+    scheme_mask_t* vertex_masks = graph->template alloc_vertex_array<scheme_mask_t>();
     graph->template process_vertices<vertex_id_t>(
         [&] (vertex_id_t v_id)
         {
             vertex_masks[v_id] = 0;
-            for (auto p = graph->csr->adj_lists[v_id].begin; p != graph->csr->adj_lists[v_id].end; p++)
+            for (auto p = graph->csr->adj_lists[v_id].begin; p< graph->csr->adj_lists[v_id].end; p++)
             {
-                vertex_masks[v_id] |= (1 << p->data.meta_info);
+                vertex_masks[v_id] |= (1 << get_edge_meta(p));
             }
             return 0;
         }
@@ -136,7 +103,7 @@ void biased_metapath(WalkEngine<WeightedMetaData, MetapathState> *graph, std::ve
             walker.data.scheme_id = graph->get_thread_local_rand_gen()->gen(schemes.size());
             walker.data.state = 0;
         },
-        [&] (Walker<MetapathState> &walker, vertex_id_t current_v, AdjUnit<WeightedMetaData> *edge)
+        [&] (Walker<MetapathState> &walker, vertex_id_t current_v, AdjUnit<edge_data_t> *edge)
         {
             walker.data.state = (walker.data.state + 1) % schemes[walker.data.scheme_id].size();
         }
@@ -146,13 +113,10 @@ void biased_metapath(WalkEngine<WeightedMetaData, MetapathState> *graph, std::ve
         {
             return (walker.step >= walk_length || !(vertex_masks[current_v] & scheme_masks[walker.data.scheme_id][walker.data.state])) ? 0.0 : 1.0;
         },
-        [&] (vertex_id_t v, AdjUnit<WeightedMetaData> *edge)
+        get_metapath_static_comp(graph),
+        [&] (Walker<MetapathState> &walker, vertex_id_t current_v, AdjUnit<edge_data_t> *edge)
         {
-            return edge->data.weight;
-        },
-        [&] (Walker<MetapathState> &walker, vertex_id_t current_v, AdjUnit<WeightedMetaData> *edge)
-        {
-            if (schemes[walker.data.scheme_id][walker.data.state][edge->data.meta_info])
+            if (schemes[walker.data.scheme_id][walker.data.state][get_edge_meta(edge)])
             {
                 return 1.0;
             } else
@@ -160,7 +124,7 @@ void biased_metapath(WalkEngine<WeightedMetaData, MetapathState> *graph, std::ve
                 return 0.0;
             }
         },
-        [&] (vertex_id_t v_id, AdjList<WeightedMetaData> *adj_lists)
+        [&] (vertex_id_t v_id, AdjList<edge_data_t> *adj_lists)
         {
             return 1.0;
         }

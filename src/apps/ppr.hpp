@@ -25,47 +25,15 @@
 #pragma once
 
 #include "walk.hpp"
+#include "static_comp.hpp"
 
-void unbiased_ppr(WalkEngine<EmptyData, EmptyData> *graph, walker_id_t walker_num, real_t terminate_prob, std::vector<vertex_id_t>* start_vertices = nullptr)
+template<typename edge_data_t>
+void ppr(WalkEngine<edge_data_t, EmptyData> *graph, walker_id_t walker_num, real_t terminate_prob, std::vector<vertex_id_t>* start_vertices = nullptr)
 {
     MPI_Barrier(MPI_COMM_WORLD);
     Timer timer;
 
     real_t extension_comp = 1 - terminate_prob;
-    graph->set_walkers(
-        walker_num,
-        nullptr,
-        nullptr,
-        [&] (walker_id_t walker_id)
-        {
-            if (start_vertices == nullptr)
-            {
-                return (vertex_id_t) walker_id % graph->get_vertex_num();
-            } else
-            {
-                return (vertex_id_t)(*start_vertices)[walker_id % start_vertices->size()];
-            }
-        }
-    );
-    graph->random_walk(
-        [&] (Walker<EmptyData>& walker, vertex_id_t current_v)
-        {
-            return extension_comp;
-        }
-    );
-
-#ifndef UNIT_TEST
-    printf("total time %lfs\n", timer.duration());
-#endif
-}
-
-void biased_ppr(WalkEngine<real_t, EmptyData> *graph, walker_id_t walker_num, real_t terminate_prob, std::vector<vertex_id_t>* start_vertices = nullptr)
-{
-    MPI_Barrier(MPI_COMM_WORLD);
-    Timer timer;
-
-    real_t extension_comp = 1 - terminate_prob;
-
     graph->set_walkers(
         walker_num,
         nullptr,
@@ -86,10 +54,7 @@ void biased_ppr(WalkEngine<real_t, EmptyData> *graph, walker_id_t walker_num, re
         {
             return extension_comp;
         },
-        [&] (vertex_id_t v, AdjUnit<real_t> *edge)
-        {
-            return edge->data;
-        }
+        get_trivial_static_comp(graph)
     );
 
 #ifndef UNIT_TEST
