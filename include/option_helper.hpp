@@ -139,7 +139,7 @@ private:
 public:
     step_t walk_length;
     TruncatedRandomWalkOptionHelper() :
-        walk_length_flag(parser, "l", "walk length", {'l'})
+        walk_length_flag(parser, "length", "walk length", {'l'})
     {}
 
     virtual void parse(int argc, char **argv)

@@ -34,11 +34,6 @@ int main(int argc, char** argv)
 
     WalkEngine<real_t, EmptyData> graph;
     graph.load_graph(opt.v_num, opt.graph_path.c_str());
-    if (!opt.output_path.empty())
-    {
-        //TODO: implement output function
-        graph.set_output_path(opt.output_path.c_str());
-    }
     graph.set_walkers(opt.walker_num);
     auto extension_comp = [&] (Walker<EmptyData>& walker, vertex_id_t current_v)
     {

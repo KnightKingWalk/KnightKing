@@ -53,7 +53,7 @@ int main(int argc, char** argv)
 
     auto extension_comp = [&] (Walker<WalkState>& walker, vertex_id_t current_v)
     {
-        return walker.step >= 10 ? 0.0 : 1.0; /*walk 10 steps then terminate*/
+        return walker.step >= opt.walk_length ? 0.0 : 1.0; /*walk walk_length steps then terminate*/
     };
     auto static_comp = [&] (vertex_id_t v, AdjUnit<real_t> *edge)
     {

@@ -26,6 +26,7 @@
 
 #include "type.hpp"
 #include "graph.hpp"
+#include "path.hpp"
 
 template<typename walker_data_t>
 struct Walker
@@ -46,15 +47,6 @@ public:
         step_t step;
         EmptyData data;
     };
-};
-
-struct Footprint
-{
-    walker_id_t walker_id;
-    step_t step;
-    vertex_id_t vertex_id;
-    Footprint() {}
-    Footprint(walker_id_t _walker_id, step_t _step, vertex_id_t _vertex_id) : walker_id(_walker_id), step(_step), vertex_id(_vertex_id) {}
 };
 
 template<typename edge_data_t>
@@ -121,8 +113,8 @@ class WalkEngine : public GraphEngine<edge_data_t>
     std::function<void (Walker<walker_data_t>&, vertex_id_t, AdjUnit<edge_data_t> *)> walker_update_state_func;
 
     //for outputs
-    std::string output_distribution_path_root;
     bool output_flag;
+    PathSet path_data;
 #ifdef COLLECT_WALK_SEQUENCE
     std::vector<std::vector<Footprint> > footprints;
 #endif
@@ -157,6 +149,7 @@ public:
         {
             delete []randgen;
         }
+        _internal_free_path_data(path_data);
     }
 
     void set_concurrency(int worker_num_param)
@@ -205,7 +198,7 @@ private:
                     walker.step = 0;
                     this->emit(start_v, walker, omp_get_thread_num());
                 #ifdef COLLECT_WALK_SEQUENCE
-                    footprints[omp_get_thread_num()].push_back(Footprint(walker.id, walker.step, start_v));
+                    footprints[omp_get_thread_num()].push_back(Footprint(walker.id, start_v, walker.step));
                 #endif
                 }
             },
@@ -402,24 +395,29 @@ private:
         delete alias_tables; 
     }
 
-    void init_output()
-    {
-    }
-
-    void dump_output()
-    {
-    }
-
-    void free_output()
-    {
-    }
-
 public:
 
-    void set_output_path(const char* path_root)
+    void set_output()
     {
         output_flag = true;
-        output_distribution_path_root = std::string(path_root);
+    }
+
+    PathSet get_path_data()
+    {
+        PathSet temp = path_data;
+        path_data = PathSet();
+        return temp;
+    }
+
+    void dump_path_data(PathSet ps, std::string output_path_root)
+    {
+        std::string local_output_path = output_path_root + std::string("_") + std::to_string(this->local_partition_id);
+        _internal_write_path_data(ps, local_output_path.c_str());
+    }
+
+    void free_path_data(PathSet &ps)
+    {
+        _internal_free_path_data(ps);
     }
 
     std::function<vertex_id_t (walker_id_t)> get_equal_dist_func()
@@ -475,15 +473,24 @@ public:
 
         Timer timer;
 
+        PathCollector *pc = nullptr;
         if (output_flag)
         {
-            init_output();
+            pc = new PathCollector(this->worker_num);
         }
 
         walker_msg_t *local_walkers = nullptr;
         walker_msg_t *local_walkers_bak = nullptr;
         walker_id_t local_walker_num = 0;
         init_walkers(local_walkers, local_walkers_bak, local_walker_num);
+        if (output_flag)
+        {
+#pragma omp parallel for
+            for (walker_id_t w_i = 0; w_i < local_walker_num; w_i++)
+            {
+                pc->add_footprint(Footprint(local_walkers[w_i].data.id, local_walkers[w_i].dst_vertex_id, 0), omp_get_thread_num());
+            }
+        }
 
         AliasTableContainer<edge_data_t> *alias_tables = nullptr;
         if (static_comp_func != nullptr)
@@ -594,8 +601,12 @@ public:
                                     }
                                     walker.step ++;
 
+                                    if (output_flag)
+                                    {
+                                        pc->add_footprint(Footprint(walker.id, ac_edge->neighbour, walker.step), worker_id);
+                                    }
                                     #ifdef COLLECT_WALK_SEQUENCE
-                                    footprints[worker_id].push_back(Footprint(walker.id, walker.step, ac_edge->neighbour));
+                                    footprints[worker_id].push_back(Footprint(walker.id, ac_edge->neighbour, walker.step));
                                     #endif
                                     if (this->is_local_vertex(ac_edge->neighbour))
                                     {
@@ -624,8 +635,8 @@ public:
 
         if (output_flag)
         {
-            dump_output();
-            free_output();
+            path_data = pc->assemble_path();
+            delete pc;
         }
         free_walkers(local_walkers, local_walkers_bak);
         if (static_comp_func != nullptr)
@@ -661,6 +672,12 @@ public:
 
         Timer timer;
 
+        PathCollector *pc = nullptr;
+        if (output_flag)
+        {
+            pc = new PathCollector(this->worker_num);
+        }
+
         assert(post_query_func != nullptr);
         assert(respond_query_func != nullptr);
         response_t* remote_response_cache = this->template alloc_walker_array<response_t>();
@@ -672,6 +689,15 @@ public:
         walker_msg_t *local_walkers_bak = nullptr;
         walker_id_t local_walker_num = 0;
         init_walkers(local_walkers, local_walkers_bak, local_walker_num);
+
+        if (output_flag)
+        {
+#pragma omp parallel for
+            for (walker_id_t w_i = 0; w_i < local_walker_num; w_i++)
+            {
+                pc->add_footprint(Footprint(local_walkers[w_i].data.id, local_walkers[w_i].dst_vertex_id, 0), omp_get_thread_num());
+            }
+        }
 
         AliasTableContainer<edge_data_t> *alias_tables = nullptr;
         if (static_comp_func != nullptr)
@@ -793,8 +819,12 @@ public:
                                                     p->data.step ++;
                                                     p->dst_vertex_id = cd->candidate->neighbour;
 
+                                                    if (output_flag)
+                                                    {
+                                                        pc->add_footprint(Footprint(p->data.id, cd->candidate->neighbour, p->data.step), worker_id);
+                                                    }
                                                     #ifdef COLLECT_WALK_SEQUENCE
-                                                    footprints[worker_id].push_back(Footprint(p->data.id, p->data.step, cd->candidate->neighbour));
+                                                    footprints[worker_id].push_back(Footprint(p->data.id, cd->candidate->neighbour, p->data.step));
                                                     #endif
                                                 } else
                                                 {
@@ -899,8 +929,12 @@ public:
                                         walker.step ++;
                                         this->emit(cd->candidate->neighbour, walker, worker_id);
 
+                                        if (output_flag)
+                                        {
+                                            pc->add_footprint(Footprint(walker.id, cd->candidate->neighbour, walker.step), worker_id);
+                                        }
                                         #ifdef COLLECT_WALK_SEQUENCE
-                                        footprints[worker_id].push_back(Footprint(walker.id, walker.step, cd->candidate->neighbour));
+                                        footprints[worker_id].push_back(Footprint(walker.id, cd->candidate->neighbour, walker.step));
                                         #endif
                                     } else
                                     {
@@ -921,6 +955,12 @@ public:
                 local_walkers_bak,
                 active_walker_num >= PHASED_EXECTION_THRESHOLD * this->partition_num
             );
+        }
+
+        if (output_flag)
+        {
+            path_data = pc->assemble_path();
+            delete pc;
         }
 
         if (remote_response_cache != nullptr)
@@ -981,7 +1021,7 @@ public:
                     {
                         auto fp = recv_data[f_i];
                         glb_footprints.push_back(fp);
-                        walk_length[fp.walker_id] = std::max(walk_length[fp.walker_id], fp.step);
+                        walk_length[fp.walker] = std::max(walk_length[fp.walker], fp.step);
                     }
                 }
             }
@@ -993,7 +1033,7 @@ public:
             }
             for (auto fp : glb_footprints)
             {
-                sequence[fp.walker_id][fp.step] = fp.vertex_id;
+                sequence[fp.walker][fp.step] = fp.vertex;
             }
         }
         send_thread.join();
