@@ -26,7 +26,7 @@
 #include "option_helper.hpp"
 #include "node2vec.hpp"
 
-class Node2vecOptionHelper : public TruncatedRandomWalkOptionHelper
+class Node2vecOptionHelper : public STruncatedRandomWalkOptionHelper
 {
 private:
     args::ValueFlag<float> p_flag;
@@ -59,24 +59,39 @@ public:
     }
 };
 
+template<typename edge_data_t>
+void run(WalkEngine<edge_data_t, Node2vecState> *graph, Node2vecOptionHelper *opt)
+{
+    graph->load_graph(opt->v_num, opt->graph_path.c_str());
+    if (!opt->output_path.empty())
+    {
+        graph->set_output();
+    }
+    Node2vecConf n2v_conf = opt->get_n2v_conf();
+    node2vec(graph, n2v_conf);
+    if (!opt->output_path.empty())
+    {
+        PathSet path_data = graph->get_path_data();
+        graph->dump_path_data(path_data, opt->output_path.c_str());
+        graph->free_path_data(path_data);
+    }
+}
+
 int main(int argc, char** argv)
 {
     MPI_Instance mpi_instance(&argc, &argv);
 
     Node2vecOptionHelper opt;
     opt.parse(argc, argv);
-    Node2vecConf n2v_conf = opt.get_n2v_conf();
 
     if (opt.static_comp.compare("weighted") == 0)
     {
         WalkEngine<real_t, Node2vecState> graph;
-        graph.load_graph(opt.v_num, opt.graph_path.c_str());
-        biased_node2vec(&graph, n2v_conf);
+        run(&graph, &opt);
     } else if(opt.static_comp.compare("unweighted") == 0)
     {
         WalkEngine<EmptyData, Node2vecState> graph;
-        graph.load_graph(opt.v_num, opt.graph_path.c_str());
-        unbiased_node2vec(&graph, n2v_conf);
+        run(&graph, &opt);
     } else
     {
         exit(1);

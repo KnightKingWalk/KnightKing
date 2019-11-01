@@ -39,6 +39,10 @@ int main(int argc, char** argv)
 
     WalkEngine<real_t, WalkState> graph;
     graph.load_graph(opt.v_num, opt.graph_path.c_str());
+    if (!opt.output_path.empty())
+    {
+        graph.set_output();
+    }
 
     auto init_walker_func = [&] (Walker<WalkState> &walker, vertex_id_t start_vertex)
     {
@@ -81,6 +85,12 @@ int main(int argc, char** argv)
     };
 
     graph.random_walk(extension_comp, static_comp, dynamic_comp, dynamic_comp_upperbound);
+    if (!opt.output_path.empty())
+    {
+        PathSet path_data = graph.get_path_data();
+        graph.dump_path_data(path_data, opt.output_path.c_str());
+        graph.free_path_data(path_data);
+    }
 
     return 0;
 }

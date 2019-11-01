@@ -26,7 +26,7 @@
 
 #include "walk.hpp"
 
-void unbiased_deepwalk(WalkEngine<EmptyData, EmptyData> *graph, walker_id_t walker_num, step_t walk_length)
+void deepwalk(WalkEngine<EmptyData, EmptyData> *graph, walker_id_t walker_num, step_t walk_length)
 {
     MPI_Barrier(MPI_COMM_WORLD);
     Timer timer;
@@ -44,7 +44,7 @@ void unbiased_deepwalk(WalkEngine<EmptyData, EmptyData> *graph, walker_id_t walk
 #endif
 }
 
-void biased_deepwalk(WalkEngine<real_t, EmptyData> *graph, walker_id_t walker_num, step_t walk_length)
+void deepwalk(WalkEngine<real_t, EmptyData> *graph, walker_id_t walker_num, step_t walk_length)
 {
     MPI_Barrier(MPI_COMM_WORLD);
     Timer timer;

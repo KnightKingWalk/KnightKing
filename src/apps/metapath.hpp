@@ -52,7 +52,7 @@ std::vector<std::vector<scheme_mask_t> > get_scheme_mask(std::vector<std::vector
     return ret;
 }
 
-void unbiased_metapath(WalkEngine<int, MetapathState> *graph, std::vector<std::vector<std::vector<bool> > > schemes, walker_id_t walker_num, step_t walk_length)
+void metapath(WalkEngine<int, MetapathState> *graph, std::vector<std::vector<std::vector<bool> > > schemes, walker_id_t walker_num, step_t walk_length)
 {
     MPI_Barrier(MPI_COMM_WORLD);
     Timer timer;
@@ -111,7 +111,7 @@ void unbiased_metapath(WalkEngine<int, MetapathState> *graph, std::vector<std::v
 #endif
 }
 
-void biased_metapath(WalkEngine<WeightedMetaData, MetapathState> *graph, std::vector<std::vector<std::vector<bool> > > schemes, walker_id_t walker_num, step_t walk_length)
+void metapath(WalkEngine<WeightedMetaData, MetapathState> *graph, std::vector<std::vector<std::vector<bool> > > schemes, walker_id_t walker_num, step_t walk_length)
 {
     MPI_Barrier(MPI_COMM_WORLD);
     Timer timer;

@@ -34,11 +34,21 @@ int main(int argc, char** argv)
 
     WalkEngine<real_t, EmptyData> graph;
     graph.load_graph(opt.v_num, opt.graph_path.c_str());
+    if (!opt.output_path.empty())
+    {
+        graph.set_output();
+    }
     graph.set_walkers(opt.walker_num);
     auto extension_comp = [&] (Walker<EmptyData>& walker, vertex_id_t current_v)
     {
         return 0.875; /*the probability to continue the walk*/
     };
     graph.random_walk(extension_comp);
+    if (!opt.output_path.empty())
+    {
+        PathSet path_data = graph.get_path_data();
+        graph.dump_path_data(path_data, opt.output_path.c_str());
+        graph.free_path_data(path_data);
+    }
     return 0;
 }

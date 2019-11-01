@@ -26,23 +26,38 @@
 #include "option_helper.hpp"
 #include "deepwalk.hpp"
 
+template<typename edge_data_t>
+void run(WalkEngine<edge_data_t, EmptyData> *graph, STruncatedRandomWalkOptionHelper *opt)
+{
+    graph->load_graph(opt->v_num, opt->graph_path.c_str());
+    if (!opt->output_path.empty())
+    {
+        graph->set_output();
+    }
+    deepwalk(graph, opt->walker_num, opt->walk_length);
+    if (!opt->output_path.empty())
+    {
+        PathSet path_data = graph->get_path_data();
+        graph->dump_path_data(path_data, opt->output_path.c_str());
+        graph->free_path_data(path_data);
+    }
+}
+
 int main(int argc, char** argv)
 {
     MPI_Instance mpi_instance(&argc, &argv);
 
-    TruncatedRandomWalkOptionHelper opt;
+    STruncatedRandomWalkOptionHelper opt;
     opt.parse(argc, argv);
 
     if (opt.static_comp.compare("weighted") == 0)
     {
         WalkEngine<real_t, EmptyData> graph;
-        graph.load_graph(opt.v_num, opt.graph_path.c_str());
-        biased_deepwalk(&graph, opt.walker_num, opt.walk_length);
+        run(&graph, &opt);
     } else if(opt.static_comp.compare("unweighted") == 0)
     {
         WalkEngine<EmptyData, EmptyData> graph;
-        graph.load_graph(opt.v_num, opt.graph_path.c_str());
-        unbiased_deepwalk(&graph, opt.walker_num, opt.walk_length);
+        run(&graph, &opt);
     } else
     {
         exit(1);

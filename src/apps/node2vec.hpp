@@ -39,7 +39,7 @@ struct Node2vecConf
     step_t walk_length;
 };
 
-void unbiased_node2vec(WalkEngine<EmptyData, Node2vecState> *graph, Node2vecConf conf)
+void node2vec(WalkEngine<EmptyData, Node2vecState> *graph, Node2vecConf conf)
 {
     MPI_Barrier(MPI_COMM_WORLD);
     Timer timer;
@@ -126,7 +126,7 @@ void unbiased_node2vec(WalkEngine<EmptyData, Node2vecState> *graph, Node2vecConf
 #endif
 }
 
-void biased_node2vec(WalkEngine<real_t, Node2vecState> *graph, Node2vecConf conf)
+void node2vec(WalkEngine<real_t, Node2vecState> *graph, Node2vecConf conf)
 {
     MPI_Barrier(MPI_COMM_WORLD);
     Timer timer;

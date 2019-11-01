@@ -102,25 +102,18 @@ class RandomWalkOptionHelper : public GraphOptionHelper
 {
 private:
     args::ValueFlag<walker_id_t> walker_num_flag;
-    args::ValueFlag<std::string> static_comp_flag;
     args::ValueFlag<std::string> output_path_flag;
 public:
     walker_id_t walker_num;
-    std::string static_comp;
     std::string output_path;
     RandomWalkOptionHelper() :
         walker_num_flag(parser, "walker", "walker number", {'w'}),
-        static_comp_flag(parser, "static_comp", "[weighted | unweighted] a weighted graph usually indicates a non-trivial static component.", {'s'}),
         output_path_flag(parser, "output", "[optional] the output path. Omit this option for pure random walk performance testing without output.", {'o'})
     {}
 
     virtual void parse(int argc, char** argv)
     {
         GraphOptionHelper::parse(argc, argv);
-
-        assert(static_comp_flag);
-        static_comp = args::get(static_comp_flag);
-        assert(static_comp.compare("weighted") == 0 || static_comp.compare("unweighted") == 0);
 
         assert(walker_num_flag);
         walker_num = args::get(walker_num_flag);
@@ -129,6 +122,24 @@ public:
         {
             output_path = args::get(output_path_flag);
         }
+    }
+};
+
+class SRandomWalkOptionHelper : public RandomWalkOptionHelper
+{
+private:
+    args::ValueFlag<std::string> static_comp_flag;
+public:
+    std::string static_comp;
+    SRandomWalkOptionHelper() :
+        static_comp_flag(parser, "static_comp", "[weighted | unweighted] a weighted graph usually indicates a non-trivial static component.", {'s'})
+    {}
+    virtual void parse(int argc, char** argv)
+    {
+        RandomWalkOptionHelper::parse(argc, argv);
+        assert(static_comp_flag);
+        static_comp = args::get(static_comp_flag);
+        assert(static_comp.compare("weighted") == 0 || static_comp.compare("unweighted") == 0);
     }
 };
 
@@ -148,5 +159,23 @@ public:
 
         assert(walk_length_flag);
         walk_length = args::get(walk_length_flag);
+    }
+};
+
+class STruncatedRandomWalkOptionHelper : public TruncatedRandomWalkOptionHelper
+{
+private:
+    args::ValueFlag<std::string> static_comp_flag;
+public:
+    std::string static_comp;
+    STruncatedRandomWalkOptionHelper() :
+        static_comp_flag(parser, "static_comp", "[weighted | unweighted] a weighted graph usually indicates a non-trivial static component.", {'s'})
+    {}
+    virtual void parse(int argc, char** argv)
+    {
+        TruncatedRandomWalkOptionHelper::parse(argc, argv);
+        assert(static_comp_flag);
+        static_comp = args::get(static_comp_flag);
+        assert(static_comp.compare("weighted") == 0 || static_comp.compare("unweighted") == 0);
     }
 };

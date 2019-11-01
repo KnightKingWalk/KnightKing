@@ -26,7 +26,7 @@
 
 #include "walk.hpp"
 
-void unbiased_ppr(WalkEngine<EmptyData, EmptyData> *graph, walker_id_t walker_num, real_t terminate_prob, std::vector<vertex_id_t>* start_vertices = nullptr)
+void ppr(WalkEngine<EmptyData, EmptyData> *graph, walker_id_t walker_num, real_t terminate_prob, std::vector<vertex_id_t>* start_vertices = nullptr)
 {
     MPI_Barrier(MPI_COMM_WORLD);
     Timer timer;
@@ -59,7 +59,7 @@ void unbiased_ppr(WalkEngine<EmptyData, EmptyData> *graph, walker_id_t walker_nu
 #endif
 }
 
-void biased_ppr(WalkEngine<real_t, EmptyData> *graph, walker_id_t walker_num, real_t terminate_prob, std::vector<vertex_id_t>* start_vertices = nullptr)
+void ppr(WalkEngine<real_t, EmptyData> *graph, walker_id_t walker_num, real_t terminate_prob, std::vector<vertex_id_t>* start_vertices = nullptr)
 {
     MPI_Barrier(MPI_COMM_WORLD);
     Timer timer;

@@ -131,7 +131,7 @@ void test_first_order_path(vertex_id_t v_num, int worker_number)
     walker_id_t walker_num = graph.get_vertex_num() * 50 + graph.get_edge_num() * 10 + rand() % 100;
     MPI_Bcast(&walker_num, 1, get_mpi_data_type<walker_id_t>(), 0, MPI_COMM_WORLD);
 
-    unbiased_ppr(&graph, walker_num, terminate_prob);
+    ppr(&graph, walker_num, terminate_prob);
     graph.collect_walk_sequence(rw_sequences);
     broadcast_rw_sequences(rw_sequences);
     PathSet ps = graph.get_path_data();
@@ -162,7 +162,7 @@ void test_second_order_path(vertex_id_t v_num, int worker_number)
     }
     MPI_Bcast(&n2v_conf, sizeof(n2v_conf), get_mpi_data_type<char>(), 0, MPI_COMM_WORLD);
 
-    unbiased_node2vec(&graph, n2v_conf);
+    node2vec(&graph, n2v_conf);
     graph.collect_walk_sequence(rw_sequences);
     broadcast_rw_sequences(rw_sequences);
     PathSet ps = graph.get_path_data();
