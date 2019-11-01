@@ -68,19 +68,30 @@ Use "-h" option to print out node2vec's options
       -v[vertex]                        vertex number
       -g[graph]                         graph data path
       -w[walker]                        walker number
-      -s[static]                        [weighted | unweighted] a weighted graph
+      -o[output]                        [optional] the output path. Omit this
+                                        option for pure random walk performance
+                                        testing without output.
+      -l[length]                        walk length
+      -s[static_comp]                   [weighted | unweighted] a weighted graph
                                         usually indicates a non-trivial static
                                         component.
-      -l[l]                             walk length
       -p[p]                             hyperparameter p
       -q[q]                             hyperparameter q
 ```
 
 A graph random walk application usually takes a graph as input, then setups a group of walkers to wander around the graph. So we need to specify the path of the graph file, the number of vertices, and the number of walkers.
 
-"-s" option specifies whether the graph is a weighted graph.
+"-v" option specifies how many vertices the graph have. The range of vertex ID is \[0, vertex_num).
+
+"-g" option specifies the path of input graph file.
+
+"-w" option specifies how many walkers there are.
+
+"-o" option specifies the path of output directory. This is an optional paramemter. If this parameter is set, then after random walk, the walking path of each walker will be dumped to the output directory.
 
 "-l" option specifies the walk length. Node2vec is a truncated random walk, which means each walker walks a pre-defined length.
+
+"-s" option specifies whether the graph is a weighted graph.
 
 "-p" and "-q" option specify the hyper-parameters p and q, which controls the walking strategy. Please read the [node2vec paper](https://dl.acm.org/citation.cfm?id=2939754) for more information.
 
@@ -93,24 +104,36 @@ There is a text file containing a sample graph, but node2vec takes a binary file
 Then we can invoke node2vec:
 
 ```
-./bin/node2vec -g ./karate.data -v 34 -w 34 -s weighted -l 80 -p 2 -q 0.5
+./bin/node2vec -g ./karate.data -v 34 -w 34 -s weighted -l 80 -p 2 -q 0.5 -o ./out
+```
+
+See the random walk output:
+
+```
+cat ./out/path_0.txt
 ```
 
 ### Run in Distributed Environment
 
-First, copy the graph file to the same path of each node, or simply place it to a shared file system. Second, write each node's IP address to a text file (e.g. ./hosts). Then use MPI to run the application, for OpenMPI:
+First, copy the graph file to the same path of each node, or simply place it to a shared file system. Second, write each node's IP address to a text file (e.g. ./hosts). Then use MPI to run the application. Suppose the graph file is placed at ./karate.data. For OpenMPI:
 
 ```
-mpiexec -npernode 1 -hostfile ./hosts ./bin/node2vec -g [graph_path] -v 34 -w 34 -s weighted -l 80 -p 2 -q 0.5
+mpiexec -npernode 1 -hostfile ./hosts ./bin/node2vec -g ./karate.data -v 34 -w 34 -s weighted -l 80 -p 2 -q 0.5 -o ./a.out
 ```
 
-for MPICH:
+For MPICH:
 
 ```
-mpiexec -np 1 -hostfile ./hosts ./bin/node2vec -g [graph_path] -v 34 -w 34 -s weighted -l 80 -p 2 -q 0.5
+mpiexec -np 1 -hostfile ./hosts ./bin/node2vec -g ./karate.data -v 34 -w 34 -s weighted -l 80 -p 2 -q 0.5 -o ./a.out
 ```
 
 The "-npernode 1" or -"np 1" setting is recommended, which tells MPI to instantiate one instance per node. KnightKing will automatically handle the concurrency within each node. Instantiating more than one instances per node may make the graph more fragmented and thus hinge the performance.
+
+See the random walk output:
+
+```
+cat ./out/path_*.txt
+```
 
 ## Create Your Own Applications
 
@@ -386,6 +409,11 @@ void load_graph(vertex_id_t vertex_num, const char* graph_file_path);
 void set_concurrency(int worker_num);
 ```
 
+**set_output**: This function tells KnightKing to record the walking paths for the walkers.
+
+**get_path_data**: This function returns *PathSet* object, which records the walking paths for the walkers. The detail of *PathSet* will be given later.
+
+**dump_path_data**: This function takes a file path as input, and dump walking paths to that path.
 ### Constants
 
 There are several numerical constants that can be adjusted for performance tuning. They are defined in *include/constants.hpp*.

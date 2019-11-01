@@ -25,39 +25,18 @@
 #pragma once
 
 #include "walk.hpp"
-#include "static_comp.hpp"
 
-template<typename edge_data_t>
-void ppr(WalkEngine<edge_data_t, EmptyData> *graph, walker_id_t walker_num, real_t terminate_prob, std::vector<vertex_id_t>* start_vertices = nullptr)
+template<typename walker_state_t>
+std::function<real_t(vertex_id_t, AdjUnit<EmptyData>*)> get_trivial_static_comp(WalkEngine<EmptyData, walker_state_t> *graph)
 {
-    MPI_Barrier(MPI_COMM_WORLD);
-    Timer timer;
+    return nullptr;
+}
 
-    real_t extension_comp = 1 - terminate_prob;
-    graph->set_walkers(
-        walker_num,
-        nullptr,
-        nullptr,
-        [&] (walker_id_t walker_id)
-        {
-            if (start_vertices == nullptr)
-            {
-                return (vertex_id_t) walker_id % graph->get_vertex_num();
-            } else
-            {
-                return (vertex_id_t)(*start_vertices)[walker_id % start_vertices->size()];
-            }
-        }
-    );
-    graph->random_walk(
-        [&] (Walker<EmptyData>& walker, vertex_id_t current_v)
-        {
-            return extension_comp;
-        },
-        get_trivial_static_comp(graph)
-    );
-
-#ifndef UNIT_TEST
-    printf("total time %lfs\n", timer.duration());
-#endif
+template<typename walker_state_t>
+std::function<real_t(vertex_id_t, AdjUnit<real_t>*)> get_trivial_static_comp(WalkEngine<real_t, walker_state_t> *graph)
+{
+    auto static_comp = [&] (vertex_id_t v, AdjUnit<real_t> *edge) {
+        return edge->data;
+    };
+    return static_comp;
 }
