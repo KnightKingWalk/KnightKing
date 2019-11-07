@@ -504,7 +504,7 @@ public:
         }
 
         real_t* dcomp_upperbound = nullptr;
-        if (dcomp_lowerbound_func != nullptr)
+        if (dcomp_upperbound_func != nullptr)
         {
             init_dcomp_upperbound(dcomp_upperbound_func, dcomp_upperbound);
         }
