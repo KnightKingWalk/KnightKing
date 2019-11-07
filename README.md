@@ -24,6 +24,12 @@ Contributors: Ke Yang<sup>1 </sup>, Mingxing Zhang<sup>1, 2</sup>, Kang Chen<sup
 
 This section gives a guide about how to compile KnightKing and how to use the built-in applications.
 
+### Tested Environment
+
+- Ubuntu 14.04
+- gcc 4.8.4
+- cmake 2.8.12
+
 ### Download and Compile
 
 KnightKing uses OpenMPI for inter-node communications, OpenMP for multi-threading, Google Test for unit test, and CMake for compilation. 

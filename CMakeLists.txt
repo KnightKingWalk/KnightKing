@@ -1,5 +1,7 @@
 cmake_minimum_required(VERSION 2.8)
 
+project(KnightKing)
+
 set(WITH_UNIT_TEST TRUE)
 set(KTK_RUNTIME_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/bin)
 
