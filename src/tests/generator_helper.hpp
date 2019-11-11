@@ -74,3 +74,10 @@ void gen_rand_edge_data(typename std::enable_if<std::is_same<float, T>::value, T
         t = gen->gen_float(range - 1.0) + 1.0;
     }
 }
+
+template <typename T>
+void gen_rand_edge_data(typename std::enable_if<std::is_class<T>::value && !std::is_same<EmptyData, T>::value, T>::type &t)
+{
+    printf("[error] Please define edge data function generator\n");
+    exit(1);
+}

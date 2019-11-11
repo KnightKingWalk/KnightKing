@@ -47,7 +47,7 @@
 const char *test_data_file = "746123_embedding_test_temp_data";
 
 template<typename edge_data_t>
-void gen_undirected_graph_file(vertex_id_t v_num, edge_id_t e_num, std::vector<Edge<edge_data_t> > &glb_edges)
+void gen_undirected_graph_file(vertex_id_t v_num, edge_id_t e_num, std::vector<Edge<edge_data_t> > &glb_edges, std::function<void(edge_data_t&)> edge_data_gen_func = nullptr)
 {
     //bi-directional edge
     assert(e_num % 2 == 0);
@@ -73,7 +73,13 @@ void gen_undirected_graph_file(vertex_id_t v_num, edge_id_t e_num, std::vector<E
         Edge<edge_data_t> e;
         e.src = s;
         e.dst = t;
-        gen_rand_edge_data<edge_data_t>(e.data);
+        if (edge_data_gen_func != nullptr)
+        {
+            edge_data_gen_func(e.data);
+        } else
+        {
+            gen_rand_edge_data<edge_data_t>(e.data);
+        }
         glb_edges.push_back(e);
         std::swap(e.src, e.dst);
         glb_edges.push_back(e);
@@ -83,10 +89,10 @@ void gen_undirected_graph_file(vertex_id_t v_num, edge_id_t e_num, std::vector<E
 }
 
 template<typename edge_data_t>
-void gen_undirected_graph_file(vertex_id_t v_num, edge_id_t e_num)
+void gen_undirected_graph_file(vertex_id_t v_num, edge_id_t e_num, std::function<void(edge_data_t&)> edge_data_gen_func = nullptr)
 {
     std::vector<Edge<edge_data_t> > es;
-    gen_undirected_graph_file(v_num, e_num, es);
+    gen_undirected_graph_file(v_num, e_num, es, edge_data_gen_func);
 }
 
 template<typename edge_data_t>

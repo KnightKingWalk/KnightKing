@@ -269,7 +269,7 @@ private:
         this->dealloc_vertex_array(dcomp_lowerbound);
     }
 
-    void init_alias_tables(std::function<real_t(vertex_id_t, AdjUnit<edge_data_t>*)> static_comp_func, AliasTableContainer<edge_data_t> *&alias_tables)
+    void init_alias_tables(std::function<real_t(vertex_id_t, AdjUnit<edge_data_t>*)> static_comp_func, AliasTableContainer<edge_data_t> *&alias_tables, real_t* regular_area = nullptr)
     {
         assert(static_comp_func != nullptr);
         assert(alias_tables == nullptr);
@@ -315,6 +315,10 @@ private:
                         {
                             prob[e_i] = static_comp_func(v_i, begin + e_i); 
                             sum += prob[e_i];
+                        }
+                        if (regular_area != nullptr)
+                        {
+                            regular_area[v_i] = sum;
                         }
                         real_t ave_prob = sum / this->vertex_out_degree[v_i];
                         vertex_id_t p_set_head = 0;
@@ -470,13 +474,32 @@ public:
         std::function<real_t(vertex_id_t, AdjUnit<edge_data_t>*)> static_comp_func = nullptr,
         std::function<real_t (Walker<walker_data_t>&, vertex_id_t, AdjUnit<edge_data_t> *)> dynamic_comp_func = nullptr,
         std::function<real_t(vertex_id_t, AdjList<edge_data_t>*)> dcomp_upperbound_func = nullptr,
-        std::function<real_t(vertex_id_t, AdjList<edge_data_t>*)> dcomp_lowerbound_func = nullptr
+        std::function<real_t(vertex_id_t, AdjList<edge_data_t>*)> dcomp_lowerbound_func = nullptr,
+        std::function<void(Walker<walker_data_t>&, vertex_id_t, AdjList<edge_data_t>*, real_t&, vertex_id_t&)> outlier_upperbound_func = nullptr,
+        std::function<AdjUnit<edge_data_t>*(Walker<walker_data_t>&, vertex_id_t, AdjList<edge_data_t>*, vertex_id_t)> outlier_search_func = nullptr
     )
     {
         typedef Walker<walker_data_t> walker_t;
         typedef Message<walker_t> walker_msg_t;
 
         Timer timer;
+
+        if (dynamic_comp_func != nullptr)
+        {
+            assert(dcomp_upperbound_func != nullptr);
+        } else
+        {
+            assert(dcomp_upperbound_func == nullptr);
+            assert(dcomp_lowerbound_func == nullptr);
+            assert(outlier_upperbound_func == nullptr);
+            assert(outlier_search_func == nullptr);
+        }
+        assert(outlier_upperbound_func == nullptr && outlier_search_func == nullptr || outlier_upperbound_func != nullptr &&  outlier_search_func != nullptr);
+        bool outlier_opt_flag = false;
+        if (outlier_upperbound_func != nullptr)
+        {
+            outlier_opt_flag = true;
+        }
 
         PathCollector *pc = nullptr;
         if (output_flag)
@@ -497,14 +520,8 @@ public:
             }
         }
 
-        AliasTableContainer<edge_data_t> *alias_tables = nullptr;
-        if (static_comp_func != nullptr)
-        {
-            init_alias_tables(static_comp_func, alias_tables); 
-        }
-
         real_t* dcomp_upperbound = nullptr;
-        if (dcomp_lowerbound_func != nullptr)
+        if (dcomp_upperbound_func != nullptr)
         {
             init_dcomp_upperbound(dcomp_upperbound_func, dcomp_upperbound);
         }
@@ -513,6 +530,39 @@ public:
         if (dcomp_lowerbound_func != nullptr)
         {
             init_dcomp_lowerbound(dcomp_lowerbound_func, dcomp_lowerbound);
+        }
+
+        real_t *regular_area = nullptr;
+        if (outlier_opt_flag)
+        {
+            regular_area = this->template alloc_vertex_array<real_t>();
+        }
+        AliasTableContainer<edge_data_t> *alias_tables = nullptr;
+        if (static_comp_func != nullptr)
+        {
+            init_alias_tables(static_comp_func, alias_tables, regular_area); 
+            if (outlier_opt_flag && dcomp_upperbound != nullptr)
+            {
+                vertex_id_t local_v_begin = this->get_local_vertex_begin();
+                vertex_id_t local_v_end = this->get_local_vertex_end();
+#pragma omp parallel for
+                for (vertex_id_t v_i = local_v_begin; v_i < local_v_end; v_i++)
+                {
+                    regular_area[v_i] *= dcomp_upperbound[v_i];
+                }
+            }
+        } else
+        {
+            if (outlier_opt_flag)
+            {
+                vertex_id_t local_v_begin = this->get_local_vertex_begin();
+                vertex_id_t local_v_end = this->get_local_vertex_end();
+#pragma omp parallel for
+                for (vertex_id_t v_i = local_v_begin; v_i < local_v_end; v_i++)
+                {
+                    regular_area[v_i] = this->vertex_out_degree[v_i] * dcomp_upperbound[v_i];
+                }
+            }
         }
 
         this->set_msg_buffer(walker_num, sizeof(walker_msg_t));
@@ -571,8 +621,44 @@ public:
                                     AdjList<edge_data_t> *adj = this->csr->adj_lists + current_v;
                                     AdjUnit<edge_data_t> *candidate = nullptr;
                                     AdjUnit<edge_data_t> *ac_edge = nullptr;
+                                    
                                     while (ac_edge == nullptr)
                                     {
+                                        if (outlier_opt_flag)
+                                        {
+                                            real_t outlier_overflow_upperbound;
+                                            vertex_id_t outlier_num_upperbound;
+                                            outlier_upperbound_func(p->data, current_v, adj, outlier_overflow_upperbound, outlier_num_upperbound);
+                                            if (outlier_overflow_upperbound > 0 && outlier_num_upperbound > 0)
+                                            {
+                                                real_t randval = randgen[worker_id].gen_float(outlier_overflow_upperbound * outlier_num_upperbound + regular_area[current_v]) - regular_area[current_v];
+                                                if (randval > 0)
+                                                {
+                                                    //fall in appendix area
+                                                    vertex_id_t outlier_idx = randval / outlier_overflow_upperbound;
+                                                    if (outlier_idx + 1 > outlier_num_upperbound)
+                                                    {
+                                                        //in case of round-off error
+                                                        outlier_idx = outlier_num_upperbound - 1;
+                                                    }
+                                                    candidate = outlier_search_func(p->data, current_v, adj, outlier_idx);
+                                                    if (candidate != nullptr)
+                                                    {
+                                                        real_t outlier_static_comp =  static_comp_func ? static_comp_func(current_v, candidate) : 1.0;
+                                                        randval = (randval - outlier_idx * outlier_overflow_upperbound) / outlier_static_comp + dcomp_upperbound[current_v];
+                                                        #ifdef UNIT_TEST
+                                                        assert(outlier_overflow_upperbound / outlier_static_comp + dcomp_upperbound[current_v] + 1e-6 >= dynamic_comp_func(walker, current_v, candidate));
+                                                        #endif
+                                                        if (randval <= dynamic_comp_func(walker, current_v, candidate))
+                                                        {
+                                                            ac_edge = candidate;
+                                                        }
+                                                    }
+                                                    continue;
+                                                }
+                                            }
+                                        }
+
                                         if (alias_tables == nullptr)
                                         {
                                             candidate = adj->begin + gen->gen(degree);
@@ -656,6 +742,10 @@ public:
         {
             free_dcomp_lowerbound(dcomp_lowerbound);
         }
+        if (outlier_opt_flag)
+        {
+            this->dealloc_vertex_array(regular_area);
+        }
     }
 
     template<typename query_data_t, typename response_data_t>
@@ -667,7 +757,8 @@ public:
         std::function<real_t (Walker<walker_data_t>&, stateResponse<response_data_t> &, vertex_id_t, AdjUnit<edge_data_t> *)> dynamic_comp_func,
         std::function<real_t(vertex_id_t, AdjList<edge_data_t>*)> dcomp_upperbound_func,
         std::function<real_t(vertex_id_t, AdjList<edge_data_t>*)> dcomp_lowerbound_func = nullptr,
-        std::function<bool (Walker<walker_data_t>&, vertex_id_t, AdjUnit<edge_data_t> *, real_t&)> try_local_compute_func = nullptr
+        std::function<void(Walker<walker_data_t>&, vertex_id_t, AdjList<edge_data_t>*, real_t&, vertex_id_t&)> outlier_upperbound_func = nullptr,
+        std::function<AdjUnit<edge_data_t>*(Walker<walker_data_t>&, vertex_id_t, AdjList<edge_data_t>*, vertex_id_t)> outlier_search_func = nullptr
     )
     {
         typedef Walker<walker_data_t> walker_t;
@@ -683,8 +774,25 @@ public:
             pc = new PathCollector(this->worker_num);
         }
 
+        if (dynamic_comp_func != nullptr)
+        {
+            assert(dcomp_upperbound_func != nullptr);
+        } else
+        {
+            assert(dcomp_upperbound_func == nullptr);
+            assert(dcomp_lowerbound_func == nullptr);
+            assert(outlier_upperbound_func == nullptr);
+            assert(outlier_search_func == nullptr);
+        }
         assert(post_query_func != nullptr);
         assert(respond_query_func != nullptr);
+        assert(outlier_upperbound_func == nullptr && outlier_search_func == nullptr || outlier_upperbound_func != nullptr &&  outlier_search_func != nullptr);
+        bool outlier_opt_flag = false;
+        if (outlier_upperbound_func != nullptr)
+        {
+            outlier_opt_flag = true;
+        }
+
         response_t* remote_response_cache = this->template alloc_walker_array<response_t>();
         SecondOrderCandidate<edge_data_t>* remote_fetch_candidate = this->template alloc_walker_array<SecondOrderCandidate<edge_data_t> >();
         Message<query_t>* cached_request = this->template alloc_walker_array<Message<query_t> > ();
@@ -704,14 +812,8 @@ public:
             }
         }
 
-        AliasTableContainer<edge_data_t> *alias_tables = nullptr;
-        if (static_comp_func != nullptr)
-        {
-            init_alias_tables(static_comp_func, alias_tables); 
-        }
-
         real_t* dcomp_upperbound = nullptr;
-        if (dcomp_lowerbound_func != nullptr)
+        if (dcomp_upperbound_func != nullptr)
         {
             init_dcomp_upperbound(dcomp_upperbound_func, dcomp_upperbound);
         }
@@ -720,6 +822,39 @@ public:
         if (dcomp_lowerbound_func != nullptr)
         {
             init_dcomp_lowerbound(dcomp_lowerbound_func, dcomp_lowerbound);
+        }
+
+        real_t *regular_area = nullptr;
+        if (outlier_opt_flag)
+        {
+            regular_area = this->template alloc_vertex_array<real_t>();
+        }
+        AliasTableContainer<edge_data_t> *alias_tables = nullptr;
+        if (static_comp_func != nullptr)
+        {
+            init_alias_tables(static_comp_func, alias_tables, regular_area); 
+            if (outlier_opt_flag)
+            {
+                vertex_id_t local_v_begin = this->get_local_vertex_begin();
+                vertex_id_t local_v_end = this->get_local_vertex_end();
+#pragma omp parallel for
+                for (vertex_id_t v_i = local_v_begin; v_i < local_v_end; v_i++)
+                {
+                    regular_area[v_i] *= dcomp_upperbound[v_i];
+                }
+            }
+        } else
+        {
+            if (outlier_opt_flag)
+            {
+                vertex_id_t local_v_begin = this->get_local_vertex_begin();
+                vertex_id_t local_v_end = this->get_local_vertex_end();
+#pragma omp parallel for
+                for (vertex_id_t v_i = local_v_begin; v_i < local_v_end; v_i++)
+                {
+                    regular_area[v_i] = this->vertex_out_degree[v_i] * dcomp_upperbound[v_i];
+                }
+            }
         }
 
         size_t max_msg_size = std::max(sizeof(walker_msg_t), std::max(sizeof(Message<query_t>), sizeof(Message<response_t>)));
@@ -781,41 +916,62 @@ public:
                                         {
                                             AdjList<edge_data_t> *adj = this->csr->adj_lists + current_v;
                                             vertex_id_t degree = this->vertex_out_degree[current_v];
-                                            AdjUnit<edge_data_t> *candidate;
-                                            if (alias_tables == nullptr)
+                                            bool in_appendix_area = false;
+                                            if (outlier_opt_flag)
                                             {
-                                                candidate = adj->begin + randgen[worker_id].gen(degree);
-                                            } else
-                                            {
-                                                AliasBucket<edge_data_t>* bucket = alias_tables->index[current_v] + randgen[worker_id].gen(degree);
-                                                if (bucket->q_ptr == nullptr || randgen[worker_id].gen_float(1.0) < bucket->p)
+                                                real_t outlier_overflow_upperbound;
+                                                vertex_id_t outlier_num_upperbound;
+                                                outlier_upperbound_func(p->data, current_v, adj, outlier_overflow_upperbound, outlier_num_upperbound);
+                                                if (outlier_overflow_upperbound > 0 && outlier_num_upperbound > 0)
                                                 {
-                                                    candidate = bucket->p_ptr;
-                                                } else
-                                                {
-                                                    candidate = bucket->q_ptr;
+                                                    real_t randval = randgen[worker_id].gen_float(outlier_overflow_upperbound * outlier_num_upperbound + regular_area[current_v]) - regular_area[current_v];
+                                                    if (randval > 0)
+                                                    {
+                                                        in_appendix_area = true;
+                                                        vertex_id_t outlier_idx = randval / outlier_overflow_upperbound;
+                                                        if (outlier_idx + 1 > outlier_num_upperbound)
+                                                        {
+                                                            //in case of round-off error
+                                                            outlier_idx = outlier_num_upperbound - 1;
+                                                        }
+                                                        cd->candidate = outlier_search_func(p->data, current_v, adj, outlier_idx);
+                                                        if (cd->candidate != nullptr)
+                                                        {
+                                                            real_t outlier_static_comp =  static_comp_func ? static_comp_func(current_v, cd->candidate) : 1.0;
+                                                            cd->randval = (randval - outlier_idx * outlier_overflow_upperbound) / outlier_static_comp + dcomp_upperbound[current_v];
+                                                            post_query_func(p->data, walker_idx, current_v, cd->candidate);
+                                                            local_cal = false;
+                                                        }
+                                                    }
                                                 }
                                             }
-                                            cd->randval = randgen[worker_id].gen_float(dcomp_upperbound[current_v]);
-                                            cd->candidate = candidate;
-                                            if (dcomp_lowerbound != nullptr && cd->randval <= dcomp_lowerbound[current_v])
+                                            if (!in_appendix_area)
                                             {
-                                                cd->accepted = true;
-                                            } else
-                                            {
-                                                real_t try_prob;
-                                                if (try_local_compute_func != nullptr && try_local_compute_func(p->data, current_v, candidate, try_prob))
+                                                if (alias_tables == nullptr)
                                                 {
-                                                    if (cd->randval <= try_prob)
-                                                    {
-                                                        cd->accepted = true;
-                                                    }
+                                                    cd->candidate = adj->begin + randgen[worker_id].gen(degree);
                                                 } else
                                                 {
-                                                    post_query_func(p->data, walker_idx, current_v, candidate);
+                                                    AliasBucket<edge_data_t>* bucket = alias_tables->index[current_v] + randgen[worker_id].gen(degree);
+                                                    if (bucket->q_ptr == nullptr || randgen[worker_id].gen_float(1.0) < bucket->p)
+                                                    {
+                                                        cd->candidate = bucket->p_ptr;
+                                                    } else
+                                                    {
+                                                        cd->candidate = bucket->q_ptr;
+                                                    }
+                                                }
+                                                cd->randval = randgen[worker_id].gen_float(dcomp_upperbound[current_v]);
+                                                if (dcomp_lowerbound != nullptr && cd->randval <= dcomp_lowerbound[current_v])
+                                                {
+                                                    cd->accepted = true;
+                                                } else
+                                                {
+                                                    post_query_func(p->data, walker_idx, current_v, cd->candidate);
                                                     local_cal = false;
                                                 }
                                             }
+
                                             if (cd->accepted == true)
                                             {
                                                 if (this->is_local_vertex(cd->candidate->neighbour))
@@ -993,6 +1149,10 @@ public:
         if (dcomp_lowerbound_func != nullptr)
         {
             free_dcomp_lowerbound(dcomp_lowerbound);
+        }
+        if (outlier_opt_flag)
+        {
+            this->dealloc_vertex_array(regular_area);
         }
     }
 

@@ -89,7 +89,7 @@ void metapath(WalkEngine<edge_data_t, MetapathState> *graph, std::vector<std::ve
         [&] (vertex_id_t v_id)
         {
             vertex_masks[v_id] = 0;
-            for (auto p = graph->csr->adj_lists[v_id].begin; p< graph->csr->adj_lists[v_id].end; p++)
+            for (auto p = graph->csr->adj_lists[v_id].begin; p < graph->csr->adj_lists[v_id].end; p++)
             {
                 vertex_masks[v_id] |= (1 << get_edge_meta(p));
             }

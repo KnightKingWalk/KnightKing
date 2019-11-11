@@ -40,6 +40,71 @@ struct Node2vecConf
     step_t walk_length;
 };
 
+// For the outlier upperbound function and outlier 
+// search function, assume no duplicate edge exists.
+// If there are duplicate edges, just use binary search to find
+// how many they are or just giva an upper bound number.
+struct Node2vecOutlierFuncWrapper
+{
+    static real_t overflow_prob;
+    static std::function<void(Walker<Node2vecState>&, vertex_id_t, AdjList<EmptyData>*, real_t&, vertex_id_t&)> get_node2vec_outlier_upperbound_func(WalkEngine<EmptyData, Node2vecState> *graph)
+    {
+        //printf("overflow prob %f\n", overflow_prob);
+        if (overflow_prob > 0)
+        {
+            auto outlier_upperbound_func = [&] (Walker<Node2vecState>& walker, vertex_id_t vertex, AdjList<EmptyData>* adj_list, real_t& prob_upperbound, vertex_id_t& num_upperbound)
+            {
+                prob_upperbound = overflow_prob;
+                num_upperbound = 1;
+            };
+            return outlier_upperbound_func;
+        } else
+        {
+            return nullptr;
+        }
+    }
+
+    static std::function<void(Walker<Node2vecState>&, vertex_id_t, AdjList<real_t>*, real_t&, vertex_id_t&)> get_node2vec_outlier_upperbound_func(WalkEngine<real_t, Node2vecState> *graph)
+    {
+        if (overflow_prob > 0)
+        {
+            auto outlier_upperbound_func = [&] (Walker<Node2vecState>& walker, vertex_id_t vertex, AdjList<real_t>* adj_list, real_t& prob_upperbound, vertex_id_t& num_upperbound)
+            {
+                AdjUnit<real_t> target;
+                target.neighbour = walker.data.previous_vertex;
+                auto return_edge = std::lower_bound(adj_list->begin, adj_list->end, target, [](const AdjUnit<real_t> &a, const AdjUnit<real_t> &b) { return a.neighbour < b.neighbour; });
+                prob_upperbound = return_edge->data * overflow_prob;
+                num_upperbound = 1;
+            };
+            return outlier_upperbound_func;
+        } else
+        {
+            return nullptr;
+        }
+    }
+
+    template<typename edge_data_t>
+    static std::function<AdjUnit<edge_data_t>* (Walker<Node2vecState>&, vertex_id_t, AdjList<edge_data_t>*, vertex_id_t)> get_node2vec_outlier_search_func(WalkEngine<edge_data_t, Node2vecState> *graph)
+    {
+        if (overflow_prob > 0)
+        {
+            auto outlier_search_func = [&] (Walker<Node2vecState>& walker, vertex_id_t vertex, AdjList<edge_data_t>* adj_list, vertex_id_t outlier_idx)
+            {
+                AdjUnit<edge_data_t> target;
+                target.neighbour = walker.data.previous_vertex;
+                auto return_edge = std::lower_bound(adj_list->begin, adj_list->end, target, [](const AdjUnit<edge_data_t> &a, const AdjUnit<edge_data_t> &b) { return a.neighbour < b.neighbour; });
+                return return_edge;
+            };
+            return outlier_search_func;
+        } else
+        {
+            return nullptr;
+        }
+    }
+};
+
+real_t Node2vecOutlierFuncWrapper::overflow_prob = 0.0;
+
 template<typename edge_data_t>
 void node2vec(WalkEngine<edge_data_t, Node2vecState> *graph, Node2vecConf conf)
 {
@@ -58,7 +123,7 @@ void node2vec(WalkEngine<edge_data_t, Node2vecState> *graph, Node2vecConf conf)
         std::sort(graph->csr->adj_lists[v_i].begin, graph->csr->adj_lists[v_i].end, [](const AdjUnit<edge_data_t> a, const AdjUnit<edge_data_t> b){return a.neighbour < b.neighbour;});
         return 0;
     });
-    real_t upperbound = std::max(1.0 / p, std::max(1.0, 1.0 / q));
+    real_t upperbound = std::max(1.0, 1.0 / q);
     real_t lowerbound = std::min(1.0 / p, std::min(1.0, 1.0 / q));
     graph->set_walkers(
         walker_num,
@@ -68,6 +133,11 @@ void node2vec(WalkEngine<edge_data_t, Node2vecState> *graph, Node2vecConf conf)
             walker.data.previous_vertex = current_v;
         }
     );
+
+    Node2vecOutlierFuncWrapper::overflow_prob = 1.0 / p - upperbound;
+    auto outlier_upperbound_func = Node2vecOutlierFuncWrapper::get_node2vec_outlier_upperbound_func(graph);
+    auto outlier_search_func = Node2vecOutlierFuncWrapper::get_node2vec_outlier_search_func(graph);
+
     graph->template second_order_random_walk<vertex_id_t, bool> (
         [&] (Walker<Node2vecState> &walker, vertex_id_t current_v)
         {
@@ -120,7 +190,9 @@ void node2vec(WalkEngine<edge_data_t, Node2vecState> *graph, Node2vecConf conf)
         [&] (vertex_id_t v_id, AdjList<edge_data_t> *adj_lists)
         {
             return lowerbound;
-        }
+        },
+        outlier_upperbound_func,
+        outlier_search_func
     );
 
 #ifndef UNIT_TEST

@@ -24,6 +24,12 @@ Contributors: Ke Yang<sup>1 </sup>, Mingxing Zhang<sup>1, 2</sup>, Kang Chen<sup
 
 This section gives a guide about how to compile KnightKing and how to use the built-in applications.
 
+### Tested Environment
+
+- Ubuntu 14.04
+- gcc 4.8.4
+- cmake 2.8.12
+
 ### Download and Compile
 
 KnightKing uses OpenMPI for inter-node communications, OpenMP for multi-threading, Google Test for unit test, and CMake for compilation. 
@@ -357,7 +363,9 @@ void random_walk(
     std::function<real_t (vertex_id_t, AdjUnit<edge_data_t>*)> static_comp_func = nullptr,
     std::function<real_t (Walker<walker_data_t>&, vertex_id_t, AdjUnit<edge_data_t> *)> dynamic_comp_func = nullptr,
     std::function<real_t (vertex_id_t, AdjList<edge_data_t>*)> dcomp_upperbound_func = nullptr,
-    std::function<real_t (vertex_id_t, AdjList<edge_data_t>*)> dcomp_lowerbound_func = nullptr
+    std::function<real_t (vertex_id_t, AdjList<edge_data_t>*)> dcomp_lowerbound_func = nullptr,
+    std::function<void(Walker<walker_data_t>&, vertex_id_t, AdjList<edge_data_t>*, real_t&, vertex_id_t&)> outlier_upperbound_func = nullptr,
+    std::function<AdjUnit<edge_data_t>*(Walker<walker_data_t>&, vertex_id_t, AdjList<edge_data_t>*, vertex_id_t)> outlier_search_func = nullptr
 )
 ```
 
@@ -366,10 +374,6 @@ void random_walk(
 **static_comp_func**: This function returns a real number representing the static component.
 
 **dynamic_comp_func**: This function returns a real number representing the dynamic component.
-
-**dcomp_upperbound_func**: This function returns a real number representing the upper bound of the dynamic component. Each vertex has its own upper bound.
-
-**dcomp_lowerbound_func**: This function returns a real number representing the lower bound of the dynamic component. Each vertex has its own lower bound.
 
 The *static_comp_func*, *dcomp_upperbound_func*, and *dcomp_lowerbound_func* are invoked at the very beginning. They are invoked only once, and the returned values will be stored for future use.
 
@@ -382,6 +386,14 @@ If *dynamic_comp_func* is not defined (left as *nullptr*), then KnightKing assum
 If *dynamic_comp_func* is defined, then *dcomp_upperbound_func* must also be defined. While *dcomp_lowerbound_func* is just an optional optimization.
 
 There is no default terminate condition, so *extension_comp_func* cannot be left as undefined.
+
+**dcomp_upperbound_func**: This function returns a real number representing the upper bound of the dynamic component. Each vertex has its own upper bound.
+
+**dcomp_lowerbound_func**: This function returns a real number representing the lower bound of the dynamic component. Each vertex has its own lower bound.
+
+**outlier_upperbound_func**: This function sets the upperbound for how much area an outlier can occupy at the appendix area, and the upperbound of outlier number. These two values are set to the last two parameters of this function. 
+
+**outlier_search_func**: This function returns the i-th outlier. The number *i* is the last parameter of this function. If there are less than i outliers, just return nullptr.
 
 For more information, please refer to the [KnightKing paper](#Publication).
 
@@ -399,7 +411,9 @@ void second_order_random_walk(
     std::function<void (vertex_id_t, stateQuery<query_data_t> &, AdjList<edge_data_t>*)> respond_query_func,
     std::function<real_t (Walker<walker_data_t>&, vertex_id_t, AdjUnit<edge_data_t> *)> dynamic_comp_func,
     std::function<real_t (vertex_id_t, AdjList<edge_data_t>*)> dcomp_upperbound_func,
-    std::function<real_t (vertex_id_t, AdjList<edge_data_t>*)> dcomp_lowerbound_func = nullptr
+    std::function<real_t (vertex_id_t, AdjList<edge_data_t>*)> dcomp_lowerbound_func = nullptr,
+    std::function<void(Walker<walker_data_t>&, vertex_id_t, AdjList<edge_data_t>*, real_t&, vertex_id_t&)> outlier_upperbound_func = nullptr,
+    std::function<AdjUnit<edge_data_t>*(Walker<walker_data_t>&, vertex_id_t, AdjList<edge_data_t>*, vertex_id_t)> outlier_search_func = nullptr
 )
 ```
 
