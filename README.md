@@ -197,7 +197,7 @@ Once the function *walk* is invoked, KnightKing will begin the random walk proce
 graph.random_walk(extension_comp);
 ```
 
-The complete sample code can be found in *src/examples/simple_walk.cpp*.
+The complete sample code can be found in [src/examples/simple_walk.cpp](src/examples/simple_walk.cpp).
 
 ### Biased Graph Random Walk
 
@@ -231,7 +231,7 @@ Then invoke the random walk:
 graph.random_walk(extenstion_comp, static_comp);
 ```
 
-The complete sample code can be found in *src/examples/biased_walk.cpp*.
+The complete sample code can be found in [src/examples/biased_walk.cpp](src/examples/biased_walk.cpp).
 
 ### Dynamic Random Walk
 
@@ -298,7 +298,7 @@ Then invoke the random walk:
 graph.random_walk(extenstion_comp, static_comp, dynamic_comp, upper_bound);
 ```
 
-The complete sample code can be found in *src/examples/dynamic_walk.cpp*.
+The complete sample code can be found in [src/examples/dynamic_walk.cpp](src/examples/dynamic_walk.cpp).
 
 ## APIs
 
@@ -401,7 +401,7 @@ There is no default terminate condition, so *extension_comp_func* cannot be left
 
 **outlier_search_func**: This function returns the i-th outlier. The number *i* is the last parameter of this function. If there are less than i outliers, just return nullptr.
 
-For more information, please refer to the [KnightKing paper](#Publication).
+For more information, please refer to the [KnightKing slides and paper](#Resources).
 
 ### Second Order Random Walk
 
