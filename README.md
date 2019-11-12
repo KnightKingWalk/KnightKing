@@ -15,10 +15,16 @@ Contributors: Ke Yang<sup>1 </sup>, Mingxing Zhang<sup>1, 2</sup>, Kang Chen<sup
 
 ## Content
 
+- [Resources](#Resources)
 - [Quick Start](#Quick-Start)
 - [Create Your Own Applications](#Create-Your-Own-Applications)
 - [APIs](#APIs)
 - [Publication](#Publication)
+
+## Resources
+
+- KnightKing overview: [slides](resources/sosp2019_slides.pdf)
+- KnightKing full introduction: [paper](resources/sosp2019_paper.pdf)
 
 ## Quick Start
 
@@ -493,15 +499,15 @@ A sample traversing code:
 PathSet path_data = graph.get_path_data();
 for (int i = 0; i < path_data.seg_num; i++)
 {
-	for (walker_id_t j = 0; j < path_data.path_num[wo_i]; j++)
-	{
-		printf("%u %u", path_data.walker_id[i][j], path_data.path_length[i][j]);
-		for (step_t k = 0; k < path_data.path_length[i][j]; k++)
-		{
-			printf(" %u", *(path_data.path_begin[i][j] + k));
-		}
-		printf("\n");
-	}
+    for (walker_id_t j = 0; j < path_data.path_num[wo_i]; j++)
+    {
+        printf("%u %u", path_data.walker_id[i][j], path_data.path_length[i][j]);
+        for (step_t k = 0; k < path_data.path_length[i][j]; k++)
+        {
+            printf(" %u", *(path_data.path_begin[i][j] + k));
+        }
+        printf("\n");
+    }
 }
 ```
 
