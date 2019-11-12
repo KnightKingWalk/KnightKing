@@ -15,10 +15,16 @@ Contributors: Ke Yang<sup>1 </sup>, Mingxing Zhang<sup>1, 2</sup>, Kang Chen<sup
 
 ## Content
 
+- [Resources](#Resources)
 - [Quick Start](#Quick-Start)
 - [Create Your Own Applications](#Create-Your-Own-Applications)
 - [APIs](#APIs)
 - [Publication](#Publication)
+
+## Resources
+
+- KnightKing overview: [slides](resources/sosp2019_slides.pdf)
+- KnightKing full introduction: [paper](resources/sosp2019_paper.pdf)
 
 ## Quick Start
 
@@ -191,7 +197,7 @@ Once the function *walk* is invoked, KnightKing will begin the random walk proce
 graph.random_walk(extension_comp);
 ```
 
-The complete sample code can be found in *src/examples/simple_walk.cpp*.
+The complete sample code can be found in [src/examples/simple_walk.cpp](src/examples/simple_walk.cpp).
 
 ### Biased Graph Random Walk
 
@@ -225,7 +231,7 @@ Then invoke the random walk:
 graph.random_walk(extenstion_comp, static_comp);
 ```
 
-The complete sample code can be found in *src/examples/biased_walk.cpp*.
+The complete sample code can be found in [src/examples/biased_walk.cpp](src/examples/biased_walk.cpp).
 
 ### Dynamic Random Walk
 
@@ -292,7 +298,7 @@ Then invoke the random walk:
 graph.random_walk(extenstion_comp, static_comp, dynamic_comp, upper_bound);
 ```
 
-The complete sample code can be found in *src/examples/dynamic_walk.cpp*.
+The complete sample code can be found in [src/examples/dynamic_walk.cpp](src/examples/dynamic_walk.cpp).
 
 ## APIs
 
@@ -395,7 +401,7 @@ There is no default terminate condition, so *extension_comp_func* cannot be left
 
 **outlier_search_func**: This function returns the i-th outlier. The number *i* is the last parameter of this function. If there are less than i outliers, just return nullptr.
 
-For more information, please refer to the [KnightKing paper](#Publication).
+For more information, please refer to the [KnightKing slides and paper](#Resources).
 
 ### Second Order Random Walk
 
@@ -493,15 +499,15 @@ A sample traversing code:
 PathSet path_data = graph.get_path_data();
 for (int i = 0; i < path_data.seg_num; i++)
 {
-	for (walker_id_t j = 0; j < path_data.path_num[wo_i]; j++)
-	{
-		printf("%u %u", path_data.walker_id[i][j], path_data.path_length[i][j]);
-		for (step_t k = 0; k < path_data.path_length[i][j]; k++)
-		{
-			printf(" %u", *(path_data.path_begin[i][j] + k));
-		}
-		printf("\n");
-	}
+    for (walker_id_t j = 0; j < path_data.path_num[wo_i]; j++)
+    {
+        printf("%u %u", path_data.walker_id[i][j], path_data.path_length[i][j]);
+        for (step_t k = 0; k < path_data.path_length[i][j]; k++)
+        {
+            printf(" %u", *(path_data.path_begin[i][j] + k));
+        }
+        printf("\n");
+    }
 }
 ```
 
