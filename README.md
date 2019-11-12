@@ -7,7 +7,7 @@
 - Walker-centric design and programming model
 - Common optimizations for different random walk algorithms.
 
-This repository is a reference implementation of the [KnightKing paper](#Publication). It provides the same APIs as introduced in the paper, with a semi-asynchronous system design.
+This repository gives the reference implementation of the KnightKing graph random walk engine (SOSP '19 paper [[PDF]](resources/sosp2019_paper.pdf), 16-minute conference talk slides [[PDF]](resources/sosp2019_slides.pdf)). It provides the same APIs as introduced in the paper, with a semi-asynchronous system design.
 
 Contributors: Ke Yang<sup>1 </sup>, Mingxing Zhang<sup>1, 2</sup>, Kang Chen<sup>1</sup>, Xiaosong Ma<sup>3</sup>, Yang Bai<sup>4</sup>, Yong Jiang<sup>1</sup>, Yongwei Wu<sup>1</sup>, Shuke Wang<sup>1 </sup>, Junqi Huang<sup>1 </sup>
 
@@ -15,16 +15,10 @@ Contributors: Ke Yang<sup>1 </sup>, Mingxing Zhang<sup>1, 2</sup>, Kang Chen<sup
 
 ## Content
 
-- [Resources](#Resources)
 - [Quick Start](#Quick-Start)
 - [Create Your Own Applications](#Create-Your-Own-Applications)
 - [APIs](#APIs)
 - [Publication](#Publication)
-
-## Resources
-
-- KnightKing overview: [slides](resources/sosp2019_slides.pdf)
-- KnightKing full introduction: [paper](resources/sosp2019_paper.pdf)
 
 ## Quick Start
 
@@ -381,10 +375,6 @@ void random_walk(
 
 **dynamic_comp_func**: This function returns a real number representing the dynamic component.
 
-The *static_comp_func*, *dcomp_upperbound_func*, and *dcomp_lowerbound_func* are invoked at the very beginning. They are invoked only once, and the returned values will be stored for future use.
-
-The *extension_comp_func* and *dynamic_comp_func* are invoked at any time their returned values are needed.
-
 If *static_comp_func* is not defined (left as *nullptr*),  then KnightKing assumes a trivial static component. Otherwise, KnightKing uses alias method to deal with static component.
 
 If *dynamic_comp_func* is not defined (left as *nullptr*), then KnightKing assumes a trivial dynamic component, and the rejection-sampling-based solution degenerates to a static sampling algorithm (alias method in our implementation).
@@ -397,11 +387,17 @@ There is no default terminate condition, so *extension_comp_func* cannot be left
 
 **dcomp_lowerbound_func**: This function returns a real number representing the lower bound of the dynamic component. Each vertex has its own lower bound.
 
-**outlier_upperbound_func**: This function sets the upperbound for how much area an outlier can occupy at the appendix area, and the upperbound of outlier number. These two values are set to the last two parameters of this function. 
+**outlier_upperbound_func**: This function sets the upperbound for how much area an outlier can occupy at the appendix area, and the upperbound of outlier number. These two values are set to the last two parameters of this function.
 
 **outlier_search_func**: This function returns the i-th outlier. The number *i* is the last parameter of this function. If there are less than i outliers, just return nullptr.
 
-For more information, please refer to the [KnightKing slides and paper](#Resources).
+For example, in node2vec with p = 0.5 and q = 2, all edges have dynamic component no more than 1 except the return edge, whose dynamic component is 2. In this case, setting the upper bound of dynamic component as 2 will lead to high rejection probability for rejection sampling. Instead, we can set the dynamic component upper bound as 1. Then before each sampling, give an estimated upperbound for the overflow area of the return edge. Suppose we find that the return edge has static component set as *S*, then the overflow area (area beyong dynamic component upper bound) is *S × (2 - 1)*, i.e. *S*. The example usage can be found at [src/apps/node2vec.hpp](src/apps/node2vec.hpp).
+
+At the beginning, *static_comp_func* are invoked to initiate the alias table, and *dcomp_upperbound_func*, and *dcomp_lowerbound_func* are invoked, too. Their returned values will be stored for future use.
+
+The *extension_comp_func*, *dynamic_comp_func*, *outlier_upperbound_func* and *outlier_search_func* are invoked ad-hocly during the walk.
+
+For more information, please refer to the [KnightKing slides and paper](#Additional-Documentation).
 
 ### Second Order Random Walk
 
