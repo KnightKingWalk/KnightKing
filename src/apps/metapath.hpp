@@ -53,7 +53,7 @@ std::vector<std::vector<scheme_mask_t> > get_scheme_mask(std::vector<std::vector
 }
 
 template<typename walker_state_t>
-std::function<real_t(vertex_id_t, AdjUnit<int>*)> get_metapath_static_comp(WalkEngine<int, walker_state_t> *graph)
+std::function<real_t(vertex_id_t, AdjUnit<UnweightedMetaData>*)> get_metapath_static_comp(WalkEngine<UnweightedMetaData, walker_state_t> *graph)
 {
     return nullptr;
 }
@@ -65,16 +65,6 @@ std::function<real_t(vertex_id_t, AdjUnit<WeightedMetaData>*)> get_metapath_stat
         return edge->data.weight;
     };
     return static_comp;
-}
-
-int get_edge_meta(AdjUnit<int> *edge)
-{
-    return edge->data;
-}
-
-int get_edge_meta(AdjUnit<WeightedMetaData> *edge)
-{
-    return edge->data.meta_info;
 }
 
 template<typename edge_data_t>
@@ -91,7 +81,7 @@ void metapath(WalkEngine<edge_data_t, MetapathState> *graph, std::vector<std::ve
             vertex_masks[v_id] = 0;
             for (auto p = graph->csr->adj_lists[v_id].begin; p < graph->csr->adj_lists[v_id].end; p++)
             {
-                vertex_masks[v_id] |= (1 << get_edge_meta(p));
+                vertex_masks[v_id] |= (1 << p->data.get_meta());
             }
             return 0;
         }
@@ -116,7 +106,7 @@ void metapath(WalkEngine<edge_data_t, MetapathState> *graph, std::vector<std::ve
         get_metapath_static_comp(graph),
         [&] (Walker<MetapathState> &walker, vertex_id_t current_v, AdjUnit<edge_data_t> *edge)
         {
-            if (schemes[walker.data.scheme_id][walker.data.state][get_edge_meta(edge)])
+            if (schemes[walker.data.scheme_id][walker.data.state][edge->data.get_meta()])
             {
                 return 1.0;
             } else

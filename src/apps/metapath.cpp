@@ -74,7 +74,7 @@ int main(int argc, char** argv)
         run(&graph, &opt);
     } else if(opt.static_comp.compare("unweighted") == 0)
     {
-        WalkEngine<int, MetapathState> graph;
+        WalkEngine<UnweightedMetaData, MetapathState> graph;
         run(&graph, &opt);
     } else
     {

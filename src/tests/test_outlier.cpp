@@ -443,7 +443,7 @@ void test_outlier(vertex_id_t v_num, int worker_number, int order)
 
     TagWalkConf conf;
     conf.walk_length = 80 + rand() % 20;
-    conf.walker_num = graph.get_vertex_num() * 300 + graph.get_edge_num() * 200 + rand() % 100;
+    conf.walker_num = graph.get_vertex_num() * 500 + graph.get_edge_num() * 500 + rand() % 100;
     conf.tag_num = 3 + rand() % 5;
     conf.outlier_amplifier = 1.0 + 5.0 / (rand() % 10 + 1);
     MPI_Bcast(&conf, sizeof(conf), get_mpi_data_type<char>(), 0, MPI_COMM_WORLD);
