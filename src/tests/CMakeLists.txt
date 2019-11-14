@@ -8,6 +8,7 @@ add_test_exec(test_storage)
 add_test_exec(test_graph)
 add_test_exec(test_path)
 add_test_exec(test_outlier)
+add_test_exec(test_bound)
 
 add_test_exec(test_deepwalk)
 add_test_exec(test_ppr)

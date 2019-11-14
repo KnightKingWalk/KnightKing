@@ -76,8 +76,8 @@ struct TagWalkConf
 {
     walker_id_t walker_num;
     step_t walk_length;
-    real_t outlier_amplifier;
     tag_t tag_num;
+    real_t vertex_tag_weight;
 };
 
 template<typename T>
@@ -105,31 +105,6 @@ std::function<real_t(vertex_id_t, AdjUnit<WeightedTag>*)> get_trivial_static_com
 template<typename edge_data_t>
 void tagwalk(WalkEngine<edge_data_t, TagWalkState>* graph, TagWalkConf conf, tag_t* vertex_tag, int order)
 {
-    struct TagSet
-    {
-        AdjUnit<edge_data_t> *begin[tag_num];
-        AdjUnit<edge_data_t> *end[tag_num];
-    };
-    TagSet* adj_tags = graph->template alloc_vertex_array<TagSet>();
-    graph->template process_vertices<vertex_id_t>([&](vertex_id_t v_i) {
-        std::sort(graph->csr->adj_lists[v_i].begin, graph->csr->adj_lists[v_i].end, [](const AdjUnit<edge_data_t> a, const AdjUnit<edge_data_t> b){return a.data.tag < b.data.tag;});
-        for (tag_t c_i = 0; c_i < tag_num; c_i++)
-        {
-            adj_tags[v_i].begin[c_i] = nullptr;
-            adj_tags[v_i].end[c_i] = nullptr;
-        }
-        for (auto p = graph->csr->adj_lists[v_i].begin; p < graph->csr->adj_lists[v_i].end; p++)
-        {
-            tag_t c = p->data.tag;
-            if (adj_tags[v_i].begin[c] == nullptr)
-            {
-               adj_tags[v_i].begin[c] = p; 
-            }
-            adj_tags[v_i].end[c] = p + 1; 
-        }
-        return 0;
-    });
-
     graph->set_walkers(
         conf.walker_num,
         [&] (Walker<TagWalkState> &walker, vertex_id_t start_vertex)
@@ -149,33 +124,11 @@ void tagwalk(WalkEngine<edge_data_t, TagWalkState>* graph, TagWalkConf conf, tag
     auto static_comp = get_trivial_static_comp<edge_data_t>();
     auto upper_bound_func = [&] (vertex_id_t v_id, AdjList<edge_data_t> *adj_lists)
     {
-        return (real_t)tag_num;
+        return (real_t)tag_num + vertex_tag[v_id] * conf.vertex_tag_weight;
     };
     auto lower_bound_func = [&] (vertex_id_t v_id, AdjList<edge_data_t> *adj_lists)
     {
-        return (real_t)1;
-    };
-    auto outlier_upperbound_func = [&] (Walker<TagWalkState>& walker, vertex_id_t vertex, AdjList<edge_data_t>* adj_list, real_t& prob_upperbound, vertex_id_t& num_upperbound)
-    {
-        if (walker.step != 0)
-        {
-            auto begin = adj_tags[vertex].begin[walker.data.tag];
-            auto end = adj_tags[vertex].end[walker.data.tag];
-            prob_upperbound = 0;
-            num_upperbound = end - begin;
-            for (auto p = begin; p < end; p++)
-            {
-                prob_upperbound = std::max(prob_upperbound, tag_num * (conf.outlier_amplifier - 1) * p->data.get_weight());
-            }
-        } else
-        {
-            prob_upperbound = 0;
-            num_upperbound = 0;
-        }
-    };
-    auto outlier_search_func = [&] (Walker<TagWalkState>& walker, vertex_id_t vertex, AdjList<edge_data_t>* adj_list, vertex_id_t outlier_idx)
-    {
-        return adj_tags[vertex].begin[walker.data.tag] + outlier_idx;
+        return (real_t)vertex_tag[v_id] * conf.vertex_tag_weight;
     };
     if (order == 1) 
     {
@@ -190,17 +143,12 @@ void tagwalk(WalkEngine<edge_data_t, TagWalkState>* graph, TagWalkConf conf, tag
                 } else
                 {
                     real_t temp = (real_t)1 + (vertex_tag[walker.data.previous_vertex] + walker.data.tag + edge->data.tag) % tag_num;
-                    if (walker.data.tag == edge->data.tag)
-                    {
-                        temp *= conf.outlier_amplifier;
-                    }
+                    temp += vertex_tag[vertex] * conf.vertex_tag_weight;
                     return temp;
                 }
             },
             upper_bound_func,
-            lower_bound_func,
-            outlier_upperbound_func,
-            outlier_search_func
+            lower_bound_func
         );
     } else
     {
@@ -232,21 +180,14 @@ void tagwalk(WalkEngine<edge_data_t, TagWalkState>* graph, TagWalkConf conf, tag
                 } else
                 {
                     real_t temp = (real_t)1 + (response.data + walker.data.tag + edge->data.tag) % tag_num;
-                    if (walker.data.tag == edge->data.tag)
-                    {
-                        temp *= conf.outlier_amplifier;
-                    }
+                    temp += vertex_tag[current_v] * conf.vertex_tag_weight;
                     return temp;
                 }
             },
             upper_bound_func,
-            lower_bound_func,
-            outlier_upperbound_func,
-            outlier_search_func
+            lower_bound_func
         );
     }
-
-    graph->dealloc_vertex_array(adj_tags);
 }
 
 template<typename edge_data_t>
@@ -339,10 +280,7 @@ void check_tagwalk_random_walk(vertex_id_t v_num, Edge<edge_data_t> *edges, edge
                 {
                     auto &edge = graph[v_i][e_i];
                     double val = (real_t)1 + (pv_tag + walker_tag + edge.data.tag) % tag_num;
-                    if (walker_tag == edge.data.tag)
-                    {
-                        val *= conf.outlier_amplifier;
-                    }
+                    val += vertex_tag[v_i] * conf.vertex_tag_weight;
                     val *= edge.data.get_weight();
                     dist[e_i] = val;
                 }
@@ -434,7 +372,7 @@ void check_tagwalk_random_walk(vertex_id_t v_num, Edge<edge_data_t> *edges, edge
 }
 
 template<typename edge_data_t>
-void test_outlier(vertex_id_t v_num, int worker_number, int order)
+void test_bound(vertex_id_t v_num, int worker_number, int order)
 {
     WalkEngine<edge_data_t, TagWalkState> graph;
     graph.set_concurrency(worker_number);
@@ -444,7 +382,7 @@ void test_outlier(vertex_id_t v_num, int worker_number, int order)
     conf.walk_length = 80 + rand() % 20;
     conf.walker_num = graph.get_vertex_num() * 500 + graph.get_edge_num() * 500 + rand() % 100;
     conf.tag_num = 3 + rand() % 5;
-    conf.outlier_amplifier = 1.0 + 5.0 / (rand() % 10 + 1);
+    conf.vertex_tag_weight = 1.0 / (1 + rand() % 3);
     MPI_Bcast(&conf, sizeof(conf), get_mpi_data_type<char>(), 0, MPI_COMM_WORLD);
 
     tag_t* vertex_tag = graph.template alloc_vertex_array<tag_t>();
@@ -501,7 +439,7 @@ std::function<void(WeightedTag&)> get_tag_gen_func<WeightedTag>()
 }
 
 template<typename edge_data_t>
-void test_outlier(int order)
+void test_bound(int order)
 {
     edge_id_t e_nums_arr[] = {100, 200, 300, 400, 500, 600};
     vertex_id_t v_num = 50 + rand() % 25;
@@ -523,7 +461,7 @@ void test_outlier(int order)
         MPI_Barrier(MPI_COMM_WORLD);
         int worker_number = rand() % 8 + 1;
         MPI_Bcast(&worker_number, 1, get_mpi_data_type<int>(), 0, MPI_COMM_WORLD);
-        test_outlier<edge_data_t>(v_num, worker_number, order);
+        test_bound<edge_data_t>(v_num, worker_number, order);
     }
     if (get_mpi_rank() == 0)
     {
@@ -531,24 +469,24 @@ void test_outlier(int order)
     }
 }
 
-TEST(Outlier, UnbiasedFirstOrder)
+TEST(Bound, UnbiasedFirstOrder)
 {
-    test_outlier<UnweightedTag>(1);
+    test_bound<UnweightedTag>(1);
 }
 
-TEST(Outlier, BiasedFirstOrder)
+TEST(Bound, BiasedFirstOrder)
 {
-    test_outlier<WeightedTag>(1);
+    test_bound<WeightedTag>(1);
 }
 
-TEST(Outlier, UnbiasedSecondOrder)
+TEST(Bound, UnbiasedSecondOrder)
 {
-    test_outlier<UnweightedTag>(2);
+    test_bound<UnweightedTag>(2);
 }
 
-TEST(Outlier, BiasedSecondOrder)
+TEST(Bound, BiasedSecondOrder)
 {
-    test_outlier<WeightedTag>(2);
+    test_bound<WeightedTag>(2);
 }
 
 
