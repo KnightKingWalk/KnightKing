@@ -2,8 +2,8 @@ cmake_minimum_required(VERSION 2.8)
 
 project(KnightKing)
 
-set(WITH_UNIT_TEST TRUE)
 set(KTK_RUNTIME_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/bin)
+option(WITH_TESTS "Build unit test programs" OFF)
 
 include(knightking.cmake)
 
@@ -21,7 +21,7 @@ if(MPI_FOUND)
     include_directories(${MPI_INCLUDE_PATH})
 endif()
 
-if(WITH_UNIT_TEST)
+if(WITH_TESTS)
     enable_testing()
     include_directories("${CMAKE_CURRENT_SOURCE_DIR}/ext/gtest/googletest/include")
     add_subdirectory(ext/gtest)
