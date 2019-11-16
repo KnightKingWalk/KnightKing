@@ -23,10 +23,10 @@ endif()
 
 if(WITH_UNIT_TEST)
     enable_testing()
-    set(GTEST_INCLUDE_DIRS "${CMAKE_CURRENT_SOURCE_DIR}/ext/gtest/googletest/include")
-    include_directories(${GTEST_INCLUDE_DIRS})
+    include_directories("${CMAKE_CURRENT_SOURCE_DIR}/ext/gtest/googletest/include")
+    add_subdirectory(ext/gtest)
     link_directories(${CMAKE_BINARY_DIR}/lib)
-    set(GTEST_LIBRARIES "libgtest.a" "libgtest_main.a")
+    set(GTEST_LIBRARIES "gtest" "gtest_main")
 endif()
 
 #use c++11
