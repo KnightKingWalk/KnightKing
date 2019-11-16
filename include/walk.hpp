@@ -698,11 +698,11 @@ public:
                                         }
                                     }
 
+                                    walker.step ++;
                                     if (walker_update_state_func != nullptr)
                                     {
                                         walker_update_state_func(walker, current_v, ac_edge);
                                     }
-                                    walker.step ++;
 
                                     if (output_flag)
                                     {
@@ -988,8 +988,8 @@ public:
                                             {
                                                 if (this->is_local_vertex(cd->candidate->neighbour))
                                                 {
-                                                    walker_update_state_func(p->data, current_v, cd->candidate);
                                                     p->data.step ++;
+                                                    walker_update_state_func(p->data, current_v, cd->candidate);
                                                     p->dst_vertex_id = cd->candidate->neighbour;
 
                                                     if (output_flag)
@@ -1098,8 +1098,8 @@ public:
                                 {
                                     if (cd->accepted || cd->randval <= dynamic_comp_func(walker, remote_response_cache[walker_idx], current_v, cd->candidate))
                                     {
-                                        walker_update_state_func(walker, current_v, cd->candidate);
                                         walker.step ++;
+                                        walker_update_state_func(walker, current_v, cd->candidate);
                                         this->emit(cd->candidate->neighbour, walker, worker_id);
 
                                         if (output_flag)

@@ -7,6 +7,7 @@ SET(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -DCOLLECT_WALKER_INIT_STATE")
 add_test_exec(test_storage)
 add_test_exec(test_graph)
 add_test_exec(test_path)
+add_test_exec(test_walker)
 add_test_exec(test_outlier)
 add_test_exec(test_bound)
 
