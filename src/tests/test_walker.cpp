@@ -39,7 +39,7 @@
 #include "walk.hpp"
 #include "util.hpp"
 #include "test.hpp"
-#include "test_rw.hpp"
+#include "test_walk.hpp"
 #include "../apps/static_comp.hpp"
 
 typedef uint64_t hash_t;

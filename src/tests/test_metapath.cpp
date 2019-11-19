@@ -38,7 +38,7 @@
 #include "walk.hpp"
 #include "util.hpp"
 #include "test.hpp"
-#include "test_rw.hpp"
+#include "test_walk.hpp"
 #include "../apps/metapath.hpp"
 
 const int edge_type_num = 5;

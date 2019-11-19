@@ -38,7 +38,7 @@
 #include "walk.hpp"
 #include "util.hpp"
 #include "test.hpp"
-#include "test_rw.hpp"
+#include "test_walk.hpp"
 
 typedef int tag_t;
 const tag_t tag_num = 4;

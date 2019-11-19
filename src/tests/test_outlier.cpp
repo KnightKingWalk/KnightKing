@@ -38,7 +38,7 @@
 #include "walk.hpp"
 #include "util.hpp"
 #include "test.hpp"
-#include "test_rw.hpp"
+#include "test_walk.hpp"
 
 typedef int tag_t;
 const tag_t tag_num = 4;
@@ -368,52 +368,6 @@ void check_tagwalk_random_walk(vertex_id_t v_num, Edge<edge_data_t> *edges, edge
             real_trans_mat[current_v][state_id][edge_idx] += 1.0;
         }
     }
-    /*
-    for (vertex_id_t v_i = 0; v_i < v_num; v_i++)
-    {
-        printf("%u: ", v_i);
-        for (auto e : graph[v_i])
-        {
-            printf("(%u %d) ", e.dst, e.data.tag);
-        }
-        printf("\n");
-    }
-    for (vertex_id_t v_i = 0; v_i < v_num; v_i++)
-    {
-        for (tag_t walker_tag = 0; walker_tag < tag_num; walker_tag++)
-        {
-            for (tag_t pv_tag = 0; pv_tag < tag_num; pv_tag++)
-            {
-                size_t state = get_state_id(walker_tag, pv_tag);
-                if (!vis[v_i][state])
-                {
-                    continue;
-                }
-                printf("%u %d %d:\n", v_i, walker_tag, pv_tag);
-                double sum = 0;
-                for (auto x : std_trans_mat[v_i][state])
-                {
-                    sum += x;
-                }
-                for (auto x : std_trans_mat[v_i][state])
-                {
-                    printf("%lf ", x / sum);
-                }
-                printf("\n");
-                sum = 0;
-                for (auto x : real_trans_mat[v_i][state])
-                {
-                    sum += x;
-                }
-                for (auto x : real_trans_mat[v_i][state])
-                {
-                    printf("%lf ", x / sum);
-                }
-                printf("\n");
-            }
-        }
-    }
-    */
     auto get_flat_mat = [] (std::vector<std::vector<std::vector<double> > > &three_d_mat)
     {
         std::vector<std::vector<double> > two_d_mat;
