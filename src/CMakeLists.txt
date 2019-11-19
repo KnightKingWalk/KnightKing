@@ -1,4 +1,4 @@
-IF(WITH_UNIT_TEST)
+IF(WITH_TESTS)
     add_subdirectory(tests)
 ENDIF()
 add_subdirectory(apps)

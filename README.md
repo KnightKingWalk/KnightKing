@@ -57,6 +57,14 @@ The compiled executable files will be installed at the "bin" directory:
 ls ./bin
 ```
 
+[Optional] Run unit tests:
+
+```
+cmake -DWITH_TESTS=on ..
+ctest
+```
+note that the unit test may take about one hour.
+
 ### Run Built-in Applications
 
 Here we take node2vec as an example to show how to run the built-in applications. The usage of other three applications is quite similar.

@@ -30,16 +30,40 @@
 
 #include "type.hpp"
 
+typedef int scheme_id_t;
+typedef int meta_state_t;
+
 struct MetapathState
 {
-    int scheme_id;
-    int state;
+    scheme_id_t scheme_id;
+    meta_state_t state;
 };
 
 struct WeightedMetaData
 {
     real_t weight;
-    int meta_info;
+    meta_state_t meta_info;
+    meta_state_t get_meta()
+    {
+        return meta_info;
+    }
+    real_t get_weight()
+    {
+        return weight;
+    }
+};
+
+struct UnweightedMetaData
+{
+    meta_state_t meta_info;
+    meta_state_t get_meta()
+    {
+        return meta_info;
+    }
+    real_t get_weight()
+    {
+        return 1.0;
+    }
 };
 
 std::vector<std::vector<std::vector<bool> > > read_metapath_schemes(const char* path)

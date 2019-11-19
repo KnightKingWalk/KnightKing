@@ -118,7 +118,9 @@ class WalkEngine : public GraphEngine<edge_data_t>
 #ifdef COLLECT_WALK_SEQUENCE
     std::vector<std::vector<Footprint> > footprints;
 #endif
-
+#ifdef COLLECT_WALKER_INIT_STATE
+    std::vector<Walker<walker_data_t> > walker_init_state;
+#endif
     template<typename T>
     T* alloc_walker_array()
     {
@@ -186,6 +188,9 @@ private:
 #ifdef COLLECT_WALK_SEQUENCE
         footprints.resize(this->worker_num);
 #endif
+#ifdef COLLECT_WALKER_INIT_STATE
+        walker_init_state.clear();
+#endif
         this->set_msg_buffer(walker_num, sizeof(walker_msg_t));
         this->template distributed_execute<walker_t>(
             [&] (void) {
@@ -217,6 +222,13 @@ private:
                 walker_init_state_func(local_walkers[w_i].data, local_walkers[w_i].dst_vertex_id);
             }
         }
+        #ifdef COLLECT_WALKER_INIT_STATE
+        walker_init_state.clear();
+        for (walker_id_t w_i = 0; w_i < local_walker_num; w_i ++)
+        {
+            walker_init_state.push_back(local_walkers[w_i].data);
+        }
+        #endif
     }
 
     void free_walkers(
@@ -686,11 +698,11 @@ public:
                                         }
                                     }
 
+                                    walker.step ++;
                                     if (walker_update_state_func != nullptr)
                                     {
                                         walker_update_state_func(walker, current_v, ac_edge);
                                     }
-                                    walker.step ++;
 
                                     if (output_flag)
                                     {
@@ -976,8 +988,8 @@ public:
                                             {
                                                 if (this->is_local_vertex(cd->candidate->neighbour))
                                                 {
-                                                    walker_update_state_func(p->data, current_v, cd->candidate);
                                                     p->data.step ++;
+                                                    walker_update_state_func(p->data, current_v, cd->candidate);
                                                     p->dst_vertex_id = cd->candidate->neighbour;
 
                                                     if (output_flag)
@@ -1086,8 +1098,8 @@ public:
                                 {
                                     if (cd->accepted || cd->randval <= dynamic_comp_func(walker, remote_response_cache[walker_idx], current_v, cd->candidate))
                                     {
-                                        walker_update_state_func(walker, current_v, cd->candidate);
                                         walker.step ++;
+                                        walker_update_state_func(walker, current_v, cd->candidate);
                                         this->emit(cd->candidate->neighbour, walker, worker_id);
 
                                         if (output_flag)
@@ -1202,6 +1214,33 @@ public:
             }
         }
         send_thread.join();
+    }
+#endif
+#ifdef COLLECT_WALKER_INIT_STATE
+    void collect_walker_init_state(std::vector<Walker<walker_data_t> > &output)
+    {
+        if (get_mpi_rank() != 0)
+        {
+            MPI_Send(walker_init_state.data(), walker_init_state.size() * sizeof(Walker<walker_data_t>), get_mpi_data_type<char>(), 0, Tag_Msg, MPI_COMM_WORLD);
+        } else
+        {
+            output = walker_init_state;
+            for (partition_id_t p_i = 1; p_i < get_mpi_size(); p_i++)
+            {
+                int recv_size = 0;
+                MPI_Status recv_status;
+                MPI_Probe(p_i, Tag_Msg, MPI_COMM_WORLD, &recv_status);
+                MPI_Get_count(&recv_status, get_mpi_data_type<char>(), &recv_size);
+                int recv_n = recv_size / sizeof(Walker<walker_data_t>);
+                std::vector<Walker<walker_data_t> > recv_data(recv_n);
+                MPI_Recv(recv_data.data(), recv_size, get_mpi_data_type<char>(), p_i, Tag_Msg, MPI_COMM_WORLD, MPI_STATUS_IGNORE);
+                for (auto x : recv_data)
+                {
+                    output.push_back(x);
+                }
+            }
+            std::sort(output.begin(), output.end(), [](const Walker<walker_data_t> a, const Walker<walker_data_t> b) { return a.id < b.id; });
+        }
     }
 #endif
 };

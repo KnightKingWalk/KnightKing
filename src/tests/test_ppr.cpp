@@ -39,7 +39,7 @@
 #include "walk.hpp"
 #include "util.hpp"
 #include "test.hpp"
-#include "test_rw.hpp"
+#include "test_walk.hpp"
 #include "../apps/ppr.hpp"
 
 template<typename edge_data_t>
@@ -62,7 +62,7 @@ void test_ppr(vertex_id_t v_num, int worker_number)
         Edge<edge_data_t> *std_edges;
         edge_id_t std_edge_num;
         read_graph(test_data_file, 0, 1, std_edges, std_edge_num);
-        check_static_first_order_random_walk(v_num, std_edges, std_edge_num, rw_sequences);
+        check_static_random_walk(v_num, std_edges, std_edge_num, rw_sequences);
     }
 }
 

@@ -33,6 +33,7 @@
 #include <type_traits>
 #include <thread>
 #include <random>
+#include <functional>
 #include <unistd.h>
 #include <sys/mman.h>
 #include <limits.h>

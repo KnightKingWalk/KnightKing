@@ -39,8 +39,114 @@
 #include "walk.hpp"
 #include "util.hpp"
 #include "test.hpp"
-#include "test_rw.hpp"
+#include "test_walk.hpp"
 #include "../apps/node2vec.hpp"
+
+template<typename edge_data_t>
+void get_node2vec_trans_matrix(vertex_id_t v_num, Edge<edge_data_t> *edges, edge_id_t e_num, double p, double q,  std::vector<std::vector<double> > &trans_mat)
+{
+    std::vector<std::vector<Edge<edge_data_t> > > graph(v_num);
+    for (edge_id_t e_i = 0; e_i < e_num; e_i++)
+    {
+        graph[edges[e_i].src].push_back(edges[e_i]);
+    }
+    for (vertex_id_t v_i = 0; v_i < v_num; v_i++)
+    {
+        std::sort(graph[v_i].begin(), graph[v_i].end(), [](const Edge<edge_data_t> a, const Edge<edge_data_t> b){return a.dst < b.dst;});
+    }
+    for (edge_id_t e_i = 0; e_i < e_num; e_i++)
+    {
+        vertex_id_t src = edges[e_i].src;
+        vertex_id_t dst = edges[e_i].dst;
+        assert(src != dst);
+        //must be undirected graph
+        assert(graph[dst].size() != 0);
+        for (auto e : graph[dst])
+        {
+            if (e.dst == src)
+            {
+                trans_mat[e_i][e.dst] += 1 / p * get_edge_trans_weight(e);
+            } else if (std::binary_search(graph[src].begin(), graph[src].end(), e, [](const Edge<edge_data_t> a, const Edge<edge_data_t> b){return a.dst < b.dst;}))
+            {
+                trans_mat[e_i][e.dst] += 1 * get_edge_trans_weight(e);
+            } else
+            {
+                trans_mat[e_i][e.dst] += 1 / q * get_edge_trans_weight(e);
+            }
+        }
+    }
+    mat_normalization(trans_mat);
+}
+
+template<typename edge_data_t>
+void check_node2vec_random_walk(vertex_id_t v_num, Edge<edge_data_t> *edges, edge_id_t e_num, double p, double q, std::vector<std::vector<vertex_id_t> > rw_sequences)
+{
+    std::vector<std::vector<double> > trans_mat(e_num);
+    for (auto &vec : trans_mat)
+    {
+        vec.resize(v_num, 0.0);
+    }
+    get_node2vec_trans_matrix(v_num, edges, e_num, p, q, trans_mat);
+
+    //check if sequences are legal
+    std::vector<vertex_id_t> out_degree(v_num, 0);
+    std::vector<std::vector<bool> > adj_mat(v_num);
+    for (auto &vec : adj_mat)
+    {
+        vec.resize(v_num, false);
+    }
+    for (edge_id_t e_i = 0; e_i < e_num; e_i++)
+    {
+        adj_mat[edges[e_i].src][edges[e_i].dst] = true;
+        out_degree[edges[e_i].src]++;
+    }
+    for (auto &s : rw_sequences)
+    {
+        if (out_degree[s[0]] == 0)
+        {
+            for (auto v : s)
+            {
+                ASSERT_EQ(v, s[0]);
+            }
+        } else
+        {
+            for (size_t v_i = 0; v_i + 1 < s.size(); v_i++)
+            {
+                if (adj_mat[s[v_i]][s[v_i + 1]] == false)
+                {
+                    printf("fault %u %u\n", s[v_i], s[v_i + 1]);
+                }
+                ASSERT_TRUE(adj_mat[s[v_i]][s[v_i + 1]]);
+            }
+        }
+    }
+
+    std::map<std::pair<vertex_id_t, vertex_id_t>, edge_id_t> dict;
+    for (edge_id_t e_i = 0; e_i < e_num; e_i++)
+    {
+        std::pair<vertex_id_t, vertex_id_t> key = std::pair<vertex_id_t, vertex_id_t>(edges[e_i].src, edges[e_i].dst);
+        assert(dict.find(key) == dict.end());
+        dict[key] = e_i;
+    }
+
+    std::vector<std::vector<double> > real_trans_mat(e_num);
+    for (auto &vec : real_trans_mat)
+    {
+        vec.resize(v_num, 0.0);
+    }
+    for (auto &s : rw_sequences)
+    {
+        if (out_degree[s[0]] != 0)
+        {
+            for (size_t v_i = 0; v_i + 2 < s.size(); v_i++)
+            {
+                real_trans_mat[dict[std::pair<vertex_id_t, vertex_id_t>(s[v_i], s[v_i + 1])]][s[v_i + 2]] += 1;
+            }
+        }
+    }
+    mat_normalization(real_trans_mat);
+    cmp_trans_matrix(real_trans_mat, trans_mat, 10.0);
+}
 
 template<typename edge_data_t>
 void test_node2vec(vertex_id_t v_num, int worker_number)
