@@ -24,6 +24,7 @@
 
 #pragma once
 
+#include <string.h>
 #include <vector>
 #include <mutex>
 #include <thread>
