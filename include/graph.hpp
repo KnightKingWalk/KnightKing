@@ -443,7 +443,7 @@ public:
         assert(local_e_num == local_edge_p);
     }
 
-    void load_graph(vertex_id_t v_num_param, const char* graph_path)
+    void load_graph(vertex_id_t v_num_param, const char* graph_path, bool load_as_undirected = false)
     {
         Timer timer;
 
@@ -455,6 +455,20 @@ public:
         Edge<edge_data_t> *read_edges;
         edge_id_t read_e_num;
         read_graph(graph_path, local_partition_id, partition_num, read_edges, read_e_num);
+        if (load_as_undirected)
+        {
+            Edge<edge_data_t> *undirected_edges = new Edge<edge_data_t>[read_e_num * 2];
+#pragma omp parallel for
+            for (edge_id_t e_i = 0; e_i < read_e_num; e_i++)
+            {
+                undirected_edges[e_i * 2] = read_edges[e_i];
+                std::swap(read_edges[e_i].src, read_edges[e_i].dst);
+                undirected_edges[e_i * 2 + 1] = read_edges[e_i];
+            }
+            delete []read_edges;
+            read_edges = undirected_edges;
+            read_e_num *= 2;
+        }
 
         this->vertex_out_degree = alloc_vertex_array<vertex_id_t>();
         this->vertex_in_degree = alloc_vertex_array<vertex_id_t>();
