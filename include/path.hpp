@@ -86,7 +86,7 @@ void _internal_free_path_data (PathSet &ps)
     }
 }
 
-void _internal_write_path_data(PathSet ps, const char* output_path)
+void _internal_write_path_data(PathSet ps, const char* output_path, bool with_head_info)
 {
     Timer timer;
     FILE* f = fopen(output_path, "w");
@@ -95,7 +95,10 @@ void _internal_write_path_data(PathSet ps, const char* output_path)
     {
         for (walker_id_t wa_i = 0; wa_i < ps.path_num[wo_i]; wa_i++)
         {
-            fprintf(f, "%u %u", ps.walker_id[wo_i][wa_i], ps.path_length[wo_i][wa_i]);
+            if (with_head_info)
+            {
+                fprintf(f, "%u %u", ps.walker_id[wo_i][wa_i], ps.path_length[wo_i][wa_i]);
+            }
             for (step_t p_i = 0; p_i < ps.path_length[wo_i][wa_i]; p_i++)
             {
                 fprintf(f, " %u", *(ps.path_begin[wo_i][wa_i] + p_i));

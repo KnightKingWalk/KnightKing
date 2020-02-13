@@ -425,7 +425,7 @@ public:
         return temp;
     }
 
-    void dump_path_data(PathSet ps, std::string output_path_root)
+    void dump_path_data(PathSet ps, std::string output_path_root, bool with_head_info = true)
     {
 #ifdef _WIN32
         std::string fsep = std::string("\\");
@@ -433,7 +433,7 @@ public:
         std::string fsep = std::string("/");
 #endif
         std::string local_output_path = output_path_root + fsep + std::string("path_") + std::to_string(this->local_partition_id) + std::string(".txt");
-        _internal_write_path_data(ps, local_output_path.c_str());
+        _internal_write_path_data(ps, local_output_path.c_str(), with_head_info);
     }
 
     void free_path_data(PathSet &ps)
