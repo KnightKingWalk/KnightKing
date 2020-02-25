@@ -46,50 +46,6 @@
 #include "storage.hpp"
 #include "mpi_helper.hpp"
 
-template <typename edge_data_t>
-struct Edge
-{
-    vertex_id_t src;
-    vertex_id_t dst;
-    edge_data_t data;
-    Edge() {}
-    Edge(vertex_id_t _src, vertex_id_t _dst, edge_data_t _data) : src(_src), dst(_dst), data(_data) {}
-    bool friend operator == (const Edge<edge_data_t> &a, const Edge<edge_data_t> &b)
-    {
-        return (a.src == b.src
-            && a.dst == b.dst
-            && a.data == b.data
-        );
-    }
-    void transpose()
-    {
-        std::swap(src, dst);
-    }
-};
-
-template <>
-struct Edge <EmptyData>
-{
-    vertex_id_t src;
-    union
-    {
-        vertex_id_t dst;
-        EmptyData data;
-    };
-    Edge() {}
-    Edge(vertex_id_t _src, vertex_id_t _dst) : src(_src), dst(_dst) {}
-    bool friend operator == (const Edge<EmptyData> &a, const Edge<EmptyData> &b)
-    {
-        return (a.src == b.src
-            && a.dst == b.dst
-        );
-    }
-    void transpose()
-    {
-        std::swap(src, dst);
-    }
-};
-
 template<typename edge_data_t>
 struct AdjUnit
 {
@@ -162,6 +118,12 @@ public:
     {
         progress = nullptr;
     }
+};
+
+enum GraphFormat
+{
+    GF_Binary,
+    GF_Edgelist
 };
 
 template<typename edge_data_t>
@@ -443,7 +405,7 @@ public:
         assert(local_e_num == local_edge_p);
     }
 
-    void load_graph(vertex_id_t v_num_param, const char* graph_path, bool load_as_undirected = false)
+    void load_graph(vertex_id_t v_num_param, const char* graph_path, bool load_as_undirected = false, GraphFormat graph_format = GF_Binary)
     {
         Timer timer;
 
@@ -454,7 +416,17 @@ public:
 
         Edge<edge_data_t> *read_edges;
         edge_id_t read_e_num;
-        read_graph(graph_path, local_partition_id, partition_num, read_edges, read_e_num);
+        if (graph_format == GF_Binary)
+        {
+            read_graph(graph_path, local_partition_id, partition_num, read_edges, read_e_num);
+        } else if (graph_format == GF_Edgelist)
+        {
+            read_edgelist(graph_path, local_partition_id, partition_num, read_edges, read_e_num);
+        } else
+        {
+            fprintf(stderr, "Unsupported graph formant");
+            exit(1);
+        }
         if (load_as_undirected)
         {
             Edge<edge_data_t> *undirected_edges = new Edge<edge_data_t>[read_e_num * 2];
