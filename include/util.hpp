@@ -96,7 +96,7 @@ class MessageBuffer
     bool is_private_data;
 public:
     size_t sz;
-    vertex_id_t count;
+    size_t count;
     void *data;
     MessageBuffer()
     {

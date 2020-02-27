@@ -191,7 +191,7 @@ public:
         {
             int worker_id = omp_get_thread_num();
             size_t next_workload;
-            walker_id_t local_counter[partition_num];
+            size_t local_counter[partition_num];
             std::fill(local_counter, local_counter + partition_num, 0);
             while ((next_workload =  __sync_fetch_and_add(&progress, 1)) < node_local_fp.size())
             {
