@@ -126,10 +126,12 @@ void test_first_order_path(vertex_id_t v_num, int worker_number)
     graph.set_concurrency(worker_number);
     graph.load_graph(v_num, test_data_file);
 
-    PathSet *ps;
+    PathSet *ps = nullptr;
     WalkConfig walk_conf;
     walk_conf.set_output_consumer(
         [&] (PathSet* ps_param) {
+            // Assume only has one iteration
+            assert(ps == nullptr);
             ps = ps_param;
         }
     );

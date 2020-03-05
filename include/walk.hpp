@@ -111,6 +111,7 @@ public:
     bool print_with_head_info;
     bool output_consumer_flag;
     std::function<void (PathSet*)> output_consumer_func;
+    double rate;
 
     WalkConfig()
     {
@@ -118,6 +119,7 @@ public:
         print_with_head_info = false;
         output_consumer_flag = false;
         output_consumer_func = nullptr;
+        rate = 1;
     }
 
     void set_output_file(const char* output_path_prefix_param, bool with_head_info = false)
@@ -133,6 +135,12 @@ public:
         assert(output_consumer_func_param != nullptr);
         this->output_consumer_flag = true;
         this->output_consumer_func = output_consumer_func_param;
+    }
+
+    void set_walk_rate(double rate_param)
+    {
+        assert(rate_param > 0 && rate_param <= 1);
+        this->rate = rate_param;
     }
 };
 
@@ -432,7 +440,8 @@ private:
     walker_id_t init_walkers(
         Message<Walker<walker_data_t> >* &local_walkers,
         Message<Walker<walker_data_t> >* &local_walkers_bak,
-        walker_id_t walker_num,
+        walker_id_t walker_begin,
+        walker_id_t walker_end,
         std::function<vertex_id_t (walker_id_t)> walker_init_dist_func,
         std::function<void (Walker<walker_data_t>&, vertex_id_t)> walker_init_state_func
     )
@@ -442,15 +451,15 @@ private:
 
         walker_id_t local_walker_num = 0;
 
-#ifdef COLLECT_WALK_SEQUENCE
-        footprints.resize(this->worker_num);
-#endif
-        this->set_msg_buffer(walker_num, sizeof(walker_msg_t));
         this->template distributed_execute<walker_t>(
             [&] (void) {
                 #pragma omp parallel for
-                for (walker_id_t w_i = this->local_partition_id; w_i < walker_num; w_i += this->partition_num)
+                for (walker_id_t w_i = walker_begin / this->partition_num * this->partition_num + this->local_partition_id; w_i < walker_end; w_i += this->partition_num)
                 {
+                    if (w_i < walker_begin)
+                    {
+                        continue;
+                    }
                     vertex_id_t start_v = walker_init_dist_func(w_i);
                     Walker<walker_data_t> walker;
                     walker.id = w_i;
@@ -695,7 +704,11 @@ public:
         typedef stateResponse<response_data_t> response_t;
 
         walker_id_t walker_num = walker_config->walker_num;
-        size_t walker_array_size = walker_num;
+        walker_id_t walker_per_iter = walker_num * walk_config->rate;
+        if (walker_per_iter == 0) walker_per_iter = 1;
+        if (walker_per_iter > walker_num) walker_per_iter = walker_num;
+        size_t walker_array_size = walker_per_iter;
+        walker_id_t remained_walker = walker_num;
 
         InternalWalkData<query_data_t, response_data_t> walk_data;
 
@@ -704,7 +717,6 @@ public:
         if (walk_config->output_file_flag || walk_config->output_consumer_flag)
         {
             walk_data.collect_path_flag = true;
-            walk_data.pc = new PathCollector(this->worker_num);
         }
 
         walk_data.outlier_opt_flag = false;
@@ -775,18 +787,6 @@ public:
         walk_data.local_walkers = this->template alloc_array<Message<Walker<walker_data_t> > >(walker_array_size);
         walk_data.local_walkers_bak = this->template alloc_array<Message<Walker<walker_data_t> > >(walker_array_size);
 
-        walk_data.local_walker_num = init_walkers(walk_data.local_walkers, walk_data.local_walkers_bak, walker_num, walker_config->walker_init_dist_func, walker_config->walker_init_state_func);
-        walk_data.active_walker_num = walker_num;
-
-        if (walk_data.collect_path_flag)
-        {
-#pragma omp parallel for
-            for (walker_id_t w_i = 0; w_i < walk_data.local_walker_num; w_i++)
-            {
-                walk_data.pc->add_footprint(Footprint(walk_data.local_walkers[w_i].data.id, walk_data.local_walkers[w_i].dst_vertex_id, 0), omp_get_thread_num());
-            }
-        }
-
         size_t max_msg_size = 0;
         if (order == 1)
         {
@@ -795,25 +795,52 @@ public:
         {
             max_msg_size = std::max(sizeof(walker_msg_t), std::max(sizeof(Message<query_t>), sizeof(Message<response_t>)));
         }
-        this->set_msg_buffer(walker_num, max_msg_size);
+        this->set_msg_buffer(walker_array_size, max_msg_size);
 
-        internal_walk_epoch(&walk_data, walker_config, transition_config);
-
-        if (walk_data.collect_path_flag)
+#ifdef COLLECT_WALK_SEQUENCE
+        footprints.resize(this->worker_num);
+#endif
+        int iter = 0;
+        while (remained_walker != 0)
         {
-            auto* paths = walk_data.pc->assemble_path();
-            if (walk_config->output_file_flag)
+            if (walk_data.collect_path_flag)
             {
-                std::string local_output_path = walk_config->output_path_prefix + "." + std::to_string(this->local_partition_id);
-                paths->dump(local_output_path.c_str(), walk_config->print_with_head_info);
+                walk_data.pc = new PathCollector(this->worker_num);
             }
-            if (walk_config->output_consumer_flag)
+            walker_id_t walker_begin = walker_num - remained_walker;
+            walk_data.active_walker_num = std::min(remained_walker, walker_per_iter);
+            remained_walker -= walk_data.active_walker_num;
+            walk_data.local_walker_num = init_walkers(walk_data.local_walkers, walk_data.local_walkers_bak, walker_begin, walker_begin + walk_data.active_walker_num, walker_config->walker_init_dist_func, walker_config->walker_init_state_func);
+
+            if (walk_data.collect_path_flag)
             {
-                walk_config->output_consumer_func(paths);
-            } else
+#pragma omp parallel for
+                for (walker_id_t w_i = 0; w_i < walk_data.local_walker_num; w_i++)
+                {
+                    walk_data.pc->add_footprint(Footprint(walk_data.local_walkers[w_i].data.id, walk_data.local_walkers[w_i].dst_vertex_id, 0), omp_get_thread_num());
+                }
+            }
+
+            internal_walk_epoch(&walk_data, walker_config, transition_config);
+
+            if (walk_data.collect_path_flag)
             {
+                auto* paths = walk_data.pc->assemble_path(walker_begin);
+                if (walk_config->output_file_flag)
+                {
+                    std::string local_output_path = walk_config->output_path_prefix + "." + std::to_string(this->local_partition_id);
+                    paths->dump(local_output_path.c_str(), iter == 0 ? "w": "a", walk_config->print_with_head_info);
+                }
+                if (walk_config->output_consumer_flag)
+                {
+                    walk_config->output_consumer_func(paths);
+                } else
+                {
+                    delete paths;
+                }
                 delete walk_data.pc;
             }
+            iter++;
         }
 
         if (walk_data.remote_response_cache != nullptr)

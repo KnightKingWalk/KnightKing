@@ -33,6 +33,8 @@ void deepwalk(WalkEngine<edge_data_t, EmptyData> *graph, walker_id_t walker_num,
     MPI_Barrier(MPI_COMM_WORLD);
     Timer timer;
 
+    if (walk_conf == nullptr) walk_conf = new WalkConfig();
+    walk_conf->rate = 0.05;
     WalkerConfig<edge_data_t, EmptyData> walker_conf(walker_num);
     auto extension_comp = [&] (Walker<EmptyData>& walker, vertex_id_t current_v) {
             return walker.step >= walk_length ? 0.0 : 1.0;

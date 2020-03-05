@@ -33,11 +33,15 @@ int main(int argc, char** argv)
     opt.parse(argc, argv);
 
     WalkEngine<real_t, EmptyData> graph;
-    graph.load_graph(opt.v_num, opt.graph_path.c_str());
+    graph.load_graph(opt.v_num, opt.graph_path.c_str(), opt.make_undirected);
     WalkConfig walk_conf;
     if (!opt.output_path.empty())
     {
         walk_conf.set_output_file(opt.output_path.c_str());
+    }
+    if (opt.set_rate)
+    {
+        walk_conf.set_walk_rate(opt.rate);
     }
     WalkerConfig<real_t, EmptyData> walker_conf(opt.walker_num);
     auto extension_comp = [&] (Walker<EmptyData>& walker, vertex_id_t current_v)

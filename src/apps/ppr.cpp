@@ -47,11 +47,15 @@ public:
 template<typename edge_data_t>
 void run(WalkEngine<edge_data_t, EmptyData> *graph, PPROptionHelper *opt)
 {
-    graph->load_graph(opt->v_num, opt->graph_path.c_str());
+    graph->load_graph(opt->v_num, opt->graph_path.c_str(), opt->make_undirected);
     WalkConfig walk_conf;
     if (!opt->output_path.empty())
     {
         walk_conf.set_output_file(opt->output_path.c_str());
+    }
+    if (opt->set_rate)
+    {
+        walk_conf.set_walk_rate(opt->rate);
     }
     ppr(graph, opt->walker_num, opt->terminate_prob, nullptr, &walk_conf);
 }

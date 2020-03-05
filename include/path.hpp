@@ -82,10 +82,10 @@ struct PathSet
             delete []path_num;
         }
     }
-    void dump(const char* output_path, bool with_head_info)
+    void dump(const char* output_path, const char* fopen_mode, bool with_head_info)
     {
         Timer timer;
-        FILE* f = fopen(output_path, "w");
+        FILE* f = fopen(output_path, fopen_mode);
         assert(f != NULL);
         for (int wo_i = 0; wo_i < seg_num; wo_i++)
         {
@@ -161,7 +161,7 @@ public:
         }
     }
 
-    PathSet* assemble_path()
+    PathSet* assemble_path(walker_id_t walker_begin)
     {
         Timer timer;
         //flush thread local fp
@@ -337,7 +337,7 @@ public:
         }
         auto get_task_partition = [&] (walker_id_t walker)
         {
-            return walker / partition_num % worker_num;
+            return (walker - walker_begin) / partition_num % worker_num;
         };
         progress = 0;
 #pragma omp parallel
@@ -387,7 +387,7 @@ public:
         walker_id_t path_num[worker_num];
         auto get_walker_local_idx = [&] (walker_id_t walker)
         {
-            return walker / partition_num / worker_num;
+            return (walker - walker_begin) / partition_num / worker_num;
         };
 #pragma omp parallel
         {
@@ -417,7 +417,7 @@ public:
             for (walker_id_t w_i = 0; w_i < thread_walker_num; w_i++)
             {
                 path_length[worker_id][w_i] = 0;
-                walker_id[worker_id][w_i] = w_i * partition_num * worker_num + partition_num * worker_id + partition_id;
+                walker_id[worker_id][w_i] = w_i * partition_num * worker_num + partition_num * worker_id + partition_id + walker_begin;
             }
             for (size_t t_i = 0; t_i < task_num; t_i++)
             {
@@ -452,6 +452,7 @@ public:
             delete []task_begin[w_i];
             delete []task_end[w_i];
         }
+        delete []recv_buf;
         PathSet* ps = new PathSet();
         ps->seg_num = worker_num;
         ps->path_set = new vertex_id_t*[worker_num];
