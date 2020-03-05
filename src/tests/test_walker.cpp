@@ -84,7 +84,7 @@ void hashwalk(WalkEngine<edge_data_t, HashWalkState>* graph, HashWalkConf conf, 
         WHItem(walker_id_t _walker, hash_t _hash, step_t _step) : walker(_walker), hash(_hash), step(_step) {}
     };
     std::vector<std::vector<WHItem> > wh_collector(graph->get_worker_num()); 
-    graph->set_walkers(
+    WalkerConfig<edge_data_t, HashWalkState> walker_conf(
         conf.walker_num,
         [&] (Walker<HashWalkState> &walker, vertex_id_t start_vertex)
         {
@@ -113,7 +113,7 @@ void hashwalk(WalkEngine<edge_data_t, HashWalkState>* graph, HashWalkConf conf, 
     };
     if (order == 1) 
     {
-        graph->random_walk(
+        TransitionConfig<edge_data_t, HashWalkState> tr_conf(
             extension_comp,
             static_comp,
             [&] (Walker<HashWalkState>& walker, vertex_id_t vertex, AdjUnit<edge_data_t> *edge)
@@ -129,9 +129,10 @@ void hashwalk(WalkEngine<edge_data_t, HashWalkState>* graph, HashWalkConf conf, 
             upper_bound_func,
             lower_bound_func
         );
+        graph->random_walk(&walker_conf, &tr_conf);
     } else
     {
-        graph->template second_order_random_walk<EmptyData, vertex_id_t> (
+        SecondOrderTransitionConfig<edge_data_t, HashWalkState, EmptyData, vertex_id_t> tr_conf(
             extension_comp,
             static_comp,
             [&] (Walker<HashWalkState> &walker, walker_id_t walker_idx, vertex_id_t current_v, AdjUnit<edge_data_t> *edge)
@@ -164,6 +165,7 @@ void hashwalk(WalkEngine<edge_data_t, HashWalkState>* graph, HashWalkConf conf, 
             upper_bound_func,
             lower_bound_func
         );
+        graph->random_walk(&walker_conf, &tr_conf);
     }
 
 	std::thread send_thread([&]() {
@@ -243,7 +245,7 @@ void test_walker(vertex_id_t v_num, int worker_number, int order)
     hashwalk(&graph, conf, order, walker_hash);
 
     std::vector<std::vector<vertex_id_t> > rw_sequences;
-    graph.collect_walk_sequence(rw_sequences);
+    graph.collect_walk_sequence(rw_sequences, conf.walker_num);
 
     if (get_mpi_rank() == 0)
     {

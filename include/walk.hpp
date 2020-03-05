@@ -101,57 +101,283 @@ struct SecondOrderCandidate
     bool accepted;
 };
 
-template<typename edge_data_t, typename walker_data_t>
-class WalkEngine : public GraphEngine<edge_data_t>
-{
-    StdRandNumGenerator* randgen;
 
-    //for setting walkers
+class WalkConfig
+{
+public:
+    // output setting
+    bool output_file_flag;
+    std::string output_path_prefix;
+    bool print_with_head_info;
+    bool output_consumer_flag;
+    std::function<void (PathSet*)> output_consumer_func;
+
+    WalkConfig()
+    {
+        output_file_flag = false;
+        print_with_head_info = false;
+        output_consumer_flag = false;
+        output_consumer_func = nullptr;
+    }
+
+    void set_output_file(const char* output_path_prefix_param, bool with_head_info = false)
+    {
+        assert(output_path_prefix_param != nullptr);
+        this->output_file_flag = true;
+        this->output_path_prefix = std::string(output_path_prefix_param);
+        this->print_with_head_info = with_head_info;
+    }
+
+    void set_output_consumer(std::function<void (PathSet*)> output_consumer_func_param)
+    {
+        assert(output_consumer_func_param != nullptr);
+        this->output_consumer_flag = true;
+        this->output_consumer_func = output_consumer_func_param;
+    }
+};
+
+template<typename edge_data_t, typename walker_data_t>
+class WalkerConfig
+{
+public:
+    // walker setting
     walker_id_t walker_num;
     std::function<vertex_id_t (walker_id_t)> walker_init_dist_func;
     std::function<void (Walker<walker_data_t>&, vertex_id_t)> walker_init_state_func;
     std::function<void (Walker<walker_data_t>&, vertex_id_t, AdjUnit<edge_data_t> *)> walker_update_state_func;
 
-    //for outputs
-    bool output_flag;
-    PathSet path_data;
+    WalkerConfig()
+    {
+        walker_num = 0;
+        walker_init_dist_func = nullptr;
+        walker_init_state_func = nullptr;
+        walker_update_state_func = nullptr;
+    }
+
+    WalkerConfig(
+        walker_id_t walker_num_param,
+        std::function<void (Walker<walker_data_t>&, vertex_id_t)> walker_init_state_func_param = nullptr,
+        std::function<void (Walker<walker_data_t>&, vertex_id_t, AdjUnit<edge_data_t> *)> walker_update_state_func_param = nullptr,
+        std::function<vertex_id_t (walker_id_t)> walker_init_dist_func_param = nullptr
+    )
+    {
+        WalkerConfig();
+        set_walkers(
+            walker_num_param,
+            walker_init_state_func_param,
+            walker_update_state_func_param,
+            walker_init_dist_func_param
+        );
+    }
+
+    void set_walkers(
+        walker_id_t walker_num_param,
+        std::function<void (Walker<walker_data_t>&, vertex_id_t)> walker_init_state_func_param = nullptr,
+        std::function<void (Walker<walker_data_t>&, vertex_id_t, AdjUnit<edge_data_t> *)> walker_update_state_func_param = nullptr,
+        std::function<vertex_id_t (walker_id_t)> walker_init_dist_func_param = nullptr
+    )
+    {
+        this->walker_num = walker_num_param;
+        this->walker_init_state_func = walker_init_state_func_param;
+        this->walker_update_state_func = walker_update_state_func_param;
+        this->walker_init_dist_func = walker_init_dist_func_param;
+    }
+};
+
+template<typename edge_data_t, typename walker_data_t>
+class TransitionConfig
+{
+public:
+	// random walk setting
+	std::function<real_t (Walker<walker_data_t>&, vertex_id_t)> extension_comp_func;
+	std::function<real_t(vertex_id_t, AdjUnit<edge_data_t>*)> static_comp_func;
+	std::function<real_t (Walker<walker_data_t>&, vertex_id_t, AdjUnit<edge_data_t> *)> dynamic_comp_func;
+	std::function<real_t(vertex_id_t, AdjList<edge_data_t>*)> dcomp_upperbound_func;
+	std::function<real_t(vertex_id_t, AdjList<edge_data_t>*)> dcomp_lowerbound_func;
+	std::function<void(Walker<walker_data_t>&, vertex_id_t, AdjList<edge_data_t>*, real_t&, vertex_id_t&)> outlier_upperbound_func;
+	std::function<AdjUnit<edge_data_t>*(Walker<walker_data_t>&, vertex_id_t, AdjList<edge_data_t>*, vertex_id_t)> outlier_search_func;
+
+    TransitionConfig()
+    {
+        extension_comp_func = nullptr;
+        static_comp_func = nullptr;
+        dynamic_comp_func = nullptr;
+        dcomp_upperbound_func = nullptr;
+        dcomp_lowerbound_func = nullptr;
+        outlier_upperbound_func = nullptr;
+        outlier_search_func = nullptr;
+    }
+
+    TransitionConfig(
+        std::function<real_t (Walker<walker_data_t>&, vertex_id_t)> extension_comp_func_param,
+        std::function<real_t(vertex_id_t, AdjUnit<edge_data_t>*)> static_comp_func_param = nullptr,
+        std::function<real_t (Walker<walker_data_t>&, vertex_id_t, AdjUnit<edge_data_t> *)> dynamic_comp_func_param = nullptr,
+        std::function<real_t(vertex_id_t, AdjList<edge_data_t>*)> dcomp_upperbound_func_param = nullptr,
+        std::function<real_t(vertex_id_t, AdjList<edge_data_t>*)> dcomp_lowerbound_func_param = nullptr,
+        std::function<void(Walker<walker_data_t>&, vertex_id_t, AdjList<edge_data_t>*, real_t&, vertex_id_t&)> outlier_upperbound_func_param = nullptr,
+        std::function<AdjUnit<edge_data_t>*(Walker<walker_data_t>&, vertex_id_t, AdjList<edge_data_t>*, vertex_id_t)> outlier_search_func_param = nullptr
+    )
+    {
+        TransitionConfig();
+        set_transition(
+            extension_comp_func_param,
+            static_comp_func_param,
+            dynamic_comp_func_param,
+            dcomp_upperbound_func_param,
+            dcomp_lowerbound_func_param,
+            outlier_upperbound_func_param,
+            outlier_search_func_param
+        );
+    }
+
+    void set_transition(
+        std::function<real_t (Walker<walker_data_t>&, vertex_id_t)> extension_comp_func_param,
+        std::function<real_t(vertex_id_t, AdjUnit<edge_data_t>*)> static_comp_func_param = nullptr,
+        std::function<real_t (Walker<walker_data_t>&, vertex_id_t, AdjUnit<edge_data_t> *)> dynamic_comp_func_param = nullptr,
+        std::function<real_t(vertex_id_t, AdjList<edge_data_t>*)> dcomp_upperbound_func_param = nullptr,
+        std::function<real_t(vertex_id_t, AdjList<edge_data_t>*)> dcomp_lowerbound_func_param = nullptr,
+        std::function<void(Walker<walker_data_t>&, vertex_id_t, AdjList<edge_data_t>*, real_t&, vertex_id_t&)> outlier_upperbound_func_param = nullptr,
+        std::function<AdjUnit<edge_data_t>*(Walker<walker_data_t>&, vertex_id_t, AdjList<edge_data_t>*, vertex_id_t)> outlier_search_func_param = nullptr
+    )
+    {
+        if (dynamic_comp_func_param != nullptr)
+        {
+            assert(dcomp_upperbound_func_param != nullptr);
+        } else
+        {
+            assert(dcomp_upperbound_func_param == nullptr);
+            assert(dcomp_lowerbound_func_param == nullptr);
+            assert(outlier_upperbound_func_param == nullptr);
+            assert(outlier_search_func_param == nullptr);
+        }
+        assert(outlier_upperbound_func_param == nullptr && outlier_search_func_param == nullptr || outlier_upperbound_func_param != nullptr &&  outlier_search_func_param != nullptr);
+
+        this->extension_comp_func = extension_comp_func_param;
+        this->static_comp_func = static_comp_func_param;
+        this->dynamic_comp_func = dynamic_comp_func_param;
+        this->dcomp_upperbound_func = dcomp_upperbound_func_param;
+        this->dcomp_lowerbound_func = dcomp_lowerbound_func_param;
+        this->outlier_upperbound_func = outlier_upperbound_func_param;
+        this->outlier_search_func = outlier_search_func_param;
+    }
+};
+
+template<typename edge_data_t, typename walker_data_t, typename query_data_t, typename response_data_t>
+class SecondOrderTransitionConfig
+{
+public:
+	// random walk setting
+	std::function<real_t (Walker<walker_data_t>&, vertex_id_t)> extension_comp_func;
+	std::function<real_t(vertex_id_t, AdjUnit<edge_data_t>*)> static_comp_func;
+    std::function<void (Walker<walker_data_t>&, walker_id_t, vertex_id_t, AdjUnit<edge_data_t> *)> post_query_func;
+    std::function<void (vertex_id_t, stateQuery<query_data_t> &, AdjList<edge_data_t>*)> respond_query_func;
+    std::function<real_t (Walker<walker_data_t>&, stateResponse<response_data_t> &, vertex_id_t, AdjUnit<edge_data_t> *)> dynamic_comp_func;
+	std::function<real_t(vertex_id_t, AdjList<edge_data_t>*)> dcomp_upperbound_func;
+	std::function<real_t(vertex_id_t, AdjList<edge_data_t>*)> dcomp_lowerbound_func;
+	std::function<void(Walker<walker_data_t>&, vertex_id_t, AdjList<edge_data_t>*, real_t&, vertex_id_t&)> outlier_upperbound_func;
+	std::function<AdjUnit<edge_data_t>*(Walker<walker_data_t>&, vertex_id_t, AdjList<edge_data_t>*, vertex_id_t)> outlier_search_func;
+
+    SecondOrderTransitionConfig()
+    {
+        this->extension_comp_func = nullptr;
+        this->static_comp_func = nullptr;
+        this->post_query_func = nullptr;
+        this->respond_query_func = nullptr;
+        this->dynamic_comp_func = nullptr;
+        this->dcomp_upperbound_func = nullptr;
+        this->dcomp_lowerbound_func = nullptr;
+        this->outlier_upperbound_func = nullptr;
+        this->outlier_search_func = nullptr;
+    }
+
+    SecondOrderTransitionConfig(
+        std::function<real_t (Walker<walker_data_t>&, vertex_id_t)> extension_comp_func_param,
+        std::function<real_t(vertex_id_t, AdjUnit<edge_data_t>*)> static_comp_func_param,
+        std::function<void (Walker<walker_data_t>&, walker_id_t, vertex_id_t, AdjUnit<edge_data_t> *)> post_query_func_param,
+        std::function<void (vertex_id_t, stateQuery<query_data_t> &, AdjList<edge_data_t>*)> respond_query_func_param,
+        std::function<real_t (Walker<walker_data_t>&, stateResponse<response_data_t> &, vertex_id_t, AdjUnit<edge_data_t> *)> dynamic_comp_func_param,
+        std::function<real_t(vertex_id_t, AdjList<edge_data_t>*)> dcomp_upperbound_func_param,
+        std::function<real_t(vertex_id_t, AdjList<edge_data_t>*)> dcomp_lowerbound_func_param = nullptr,
+        std::function<void(Walker<walker_data_t>&, vertex_id_t, AdjList<edge_data_t>*, real_t&, vertex_id_t&)> outlier_upperbound_func_param = nullptr,
+        std::function<AdjUnit<edge_data_t>*(Walker<walker_data_t>&, vertex_id_t, AdjList<edge_data_t>*, vertex_id_t)> outlier_search_func_param = nullptr
+    )
+    {
+        SecondOrderTransitionConfig();
+        set_transition(
+            extension_comp_func_param,
+            static_comp_func_param,
+            post_query_func_param,
+            respond_query_func_param,
+            dynamic_comp_func_param,
+            dcomp_upperbound_func_param,
+            dcomp_lowerbound_func_param,
+            outlier_upperbound_func_param,
+            outlier_search_func_param
+        );
+    }
+
+    void set_transition (
+        std::function<real_t (Walker<walker_data_t>&, vertex_id_t)> extension_comp_func_param,
+        std::function<real_t(vertex_id_t, AdjUnit<edge_data_t>*)> static_comp_func_param,
+        std::function<void (Walker<walker_data_t>&, walker_id_t, vertex_id_t, AdjUnit<edge_data_t> *)> post_query_func_param,
+        std::function<void (vertex_id_t, stateQuery<query_data_t> &, AdjList<edge_data_t>*)> respond_query_func_param,
+        std::function<real_t (Walker<walker_data_t>&, stateResponse<response_data_t> &, vertex_id_t, AdjUnit<edge_data_t> *)> dynamic_comp_func_param,
+        std::function<real_t(vertex_id_t, AdjList<edge_data_t>*)> dcomp_upperbound_func_param,
+        std::function<real_t(vertex_id_t, AdjList<edge_data_t>*)> dcomp_lowerbound_func_param = nullptr,
+        std::function<void(Walker<walker_data_t>&, vertex_id_t, AdjList<edge_data_t>*, real_t&, vertex_id_t&)> outlier_upperbound_func_param = nullptr,
+        std::function<AdjUnit<edge_data_t>*(Walker<walker_data_t>&, vertex_id_t, AdjList<edge_data_t>*, vertex_id_t)> outlier_search_func_param = nullptr
+    )
+    {
+        if (dynamic_comp_func_param != nullptr)
+        {
+            assert(dcomp_upperbound_func_param != nullptr);
+        } else
+        {
+            assert(dcomp_upperbound_func_param == nullptr);
+            assert(dcomp_lowerbound_func_param == nullptr);
+            assert(outlier_upperbound_func_param == nullptr);
+            assert(outlier_search_func_param == nullptr);
+        }
+        assert(post_query_func_param != nullptr);
+        assert(respond_query_func_param != nullptr);
+        assert(outlier_upperbound_func_param == nullptr && outlier_search_func_param == nullptr || outlier_upperbound_func_param != nullptr && outlier_search_func_param != nullptr);
+
+        this->extension_comp_func = extension_comp_func_param;
+        this->static_comp_func = static_comp_func_param;
+        this->post_query_func = post_query_func_param;
+        this->respond_query_func = respond_query_func_param;
+        this->dynamic_comp_func = dynamic_comp_func_param;
+        this->dcomp_upperbound_func = dcomp_upperbound_func_param;
+        this->dcomp_lowerbound_func = dcomp_lowerbound_func_param;
+        this->outlier_upperbound_func = outlier_upperbound_func_param;
+        this->outlier_search_func = outlier_search_func_param;
+    }
+};
+
+template<typename edge_data_t, typename walker_data_t>
+class WalkEngine : public GraphEngine<edge_data_t>
+{
+    StdRandNumGenerator* randgen;
+
 #ifdef COLLECT_WALK_SEQUENCE
     std::vector<std::vector<Footprint> > footprints;
 #endif
 #ifdef COLLECT_WALKER_INIT_STATE
     std::vector<Walker<walker_data_t> > walker_init_state;
 #endif
-    template<typename T>
-    T* alloc_walker_array()
-    {
-        return this->template alloc_array<T>(walker_num);
-    }
-
-    template<typename T>
-    void dealloc_walker_array(T* arr)
-    {
-        this->dealloc_array(arr, walker_num);
-    }
 
 public:
     WalkEngine()
     {
-        walker_num = 0;
-        walker_init_dist_func = nullptr;
-        walker_init_state_func = nullptr;
-        walker_update_state_func = nullptr;
-
-        output_flag = false;
-
         randgen = new StdRandNumGenerator[this->worker_num];
     }
+
     ~WalkEngine()
     {
         if (randgen != nullptr)
         {
             delete []randgen;
         }
-        _internal_free_path_data(path_data);
     }
 
     void set_concurrency(int worker_num_param)
@@ -166,30 +392,58 @@ public:
         return &randgen[omp_get_thread_num()];
     }
 
+    std::function<vertex_id_t (walker_id_t)> get_equal_dist_func()
+    {
+        auto equal_dist_func = [&] (walker_id_t w_id)
+        {
+            vertex_id_t start_v = w_id % this->v_num;
+            return start_v;
+        };
+        return equal_dist_func;
+    }
+
+    std::function<vertex_id_t (walker_id_t)> get_uniform_dist_func()
+    {
+        auto uniform_dist_func = [&] (walker_id_t w_id)
+        {
+            vertex_id_t start_v = get_thread_local_rand_gen()->gen(this->v_num);
+            return start_v;
+        };
+        return uniform_dist_func;
+    }
+
+    template<typename transition_config_t>
+    void random_walk(WalkerConfig<edge_data_t, walker_data_t> *walker_config, transition_config_t *transition_config, WalkConfig *walk_config_param = nullptr)
+    {
+        WalkConfig* walk_config = walk_config_param;
+        if (walk_config_param == nullptr)
+        {
+            walk_config = new WalkConfig();
+        }
+        internal_random_walk_wrap(walker_config, transition_config, walk_config);
+        if (walk_config_param == nullptr)
+        {
+            delete walk_config;
+        }
+    }
+
 private:
-    void init_walkers(
+
+    walker_id_t init_walkers(
         Message<Walker<walker_data_t> >* &local_walkers,
         Message<Walker<walker_data_t> >* &local_walkers_bak,
-        walker_id_t &local_walker_num
+        walker_id_t walker_num,
+        std::function<vertex_id_t (walker_id_t)> walker_init_dist_func,
+        std::function<void (Walker<walker_data_t>&, vertex_id_t)> walker_init_state_func
     )
     {
         typedef Walker<walker_data_t> walker_t;
         typedef Message<walker_t> walker_msg_t;
 
-        assert(local_walkers == nullptr);
-        assert(local_walkers_bak == nullptr);
-        assert(local_walker_num == 0);
+        walker_id_t local_walker_num = 0;
 
-        //local_walkers = new Message<Walker<walker_data_t> > [walker_capacity];
-        local_walkers = this->template alloc_walker_array<Message<Walker<walker_data_t> > >();
-        //local_walkers_bak = new Message<Walker<walker_data_t> > [walker_capacity];
-        local_walkers_bak = this->template alloc_walker_array<Message<Walker<walker_data_t> > >();
-        local_walker_num = 0;
 #ifdef COLLECT_WALK_SEQUENCE
         footprints.resize(this->worker_num);
-#endif
-#ifdef COLLECT_WALKER_INIT_STATE
-        walker_init_state.clear();
 #endif
         this->set_msg_buffer(walker_num, sizeof(walker_msg_t));
         this->template distributed_execute<walker_t>(
@@ -201,6 +455,7 @@ private:
                     Walker<walker_data_t> walker;
                     walker.id = w_i;
                     walker.step = 0;
+                    assert(start_v < this->v_num);
                     this->emit(start_v, walker, omp_get_thread_num());
                 #ifdef COLLECT_WALK_SEQUENCE
                     footprints[omp_get_thread_num()].push_back(Footprint(walker.id, start_v, walker.step));
@@ -229,17 +484,7 @@ private:
             walker_init_state.push_back(local_walkers[w_i].data);
         }
         #endif
-    }
-
-    void free_walkers(
-        Message<Walker<walker_data_t> >* local_walkers,
-        Message<Walker<walker_data_t> >* local_walkers_bak
-    )
-    {
-        assert(local_walkers != nullptr);
-        assert(local_walkers_bak != nullptr);
-        this->dealloc_walker_array(local_walkers);
-        this->dealloc_walker_array(local_walkers_bak);
+        return local_walker_num;
     }
 
     void init_dcomp_upperbound(std::function<real_t(vertex_id_t, AdjList<edge_data_t>*)> dcomp_upperbound_func, real_t* &dcomp_upperbound)
@@ -412,181 +657,251 @@ private:
     }
 
 public:
-
-    void set_output()
-    {
-        output_flag = true;
-    }
-
-    PathSet get_path_data()
-    {
-        PathSet temp = path_data;
-        path_data = PathSet();
-        return temp;
-    }
-
-    void dump_path_data(PathSet ps, std::string output_path_root, bool with_head_info = true)
-    {
-#ifdef _WIN32
-        std::string fsep = std::string("\\");
-#else
-        std::string fsep = std::string("/");
-#endif
-        std::string local_output_path = output_path_root + fsep + std::string("path_") + std::to_string(this->local_partition_id) + std::string(".txt");
-        _internal_write_path_data(ps, local_output_path.c_str(), with_head_info);
-    }
-
-    void free_path_data(PathSet &ps)
-    {
-        _internal_free_path_data(ps);
-    }
-
-    std::function<vertex_id_t (walker_id_t)> get_equal_dist_func()
-    {
-        auto equal_dist_func = [&] (walker_id_t w_id)
-        {
-            vertex_id_t start_v = w_id % this->v_num;
-            return start_v;
-        };
-        return equal_dist_func;
-    }
-
-    std::function<vertex_id_t (walker_id_t)> get_uniform_dist_func()
-    {
-        auto uniform_dist_func = [&] (walker_id_t w_id)
-        {
-            vertex_id_t start_v = get_thread_local_rand_gen()->gen(this->v_num);
-            return start_v;
-        };
-        return uniform_dist_func;
-    }
-
-    void set_walkers(
-        walker_id_t walker_num_param,
-        std::function<void (Walker<walker_data_t>&, vertex_id_t)> walker_init_state_func_param = nullptr,
-        std::function<void (Walker<walker_data_t>&, vertex_id_t, AdjUnit<edge_data_t> *)> walker_update_state_func_param = nullptr,
-        std::function<vertex_id_t (walker_id_t)> walker_init_dist_func_param = nullptr
-    )
+    template<typename query_data_t, typename response_data_t>
+    struct InternalWalkData
     {
         typedef Walker<walker_data_t> walker_t;
         typedef Message<walker_t> walker_msg_t;
-
-        this->walker_num = walker_num_param;
-        this->walker_init_state_func = walker_init_state_func_param;
-        this->walker_update_state_func = walker_update_state_func_param;
-        if (walker_init_dist_func_param == nullptr)
-        {
-            walker_init_dist_func_param = get_equal_dist_func();
-        }
-        this->walker_init_dist_func = walker_init_dist_func_param;
-    }
-
-    void random_walk(
-        std::function<real_t (Walker<walker_data_t>&, vertex_id_t)> extension_comp_func,
-        std::function<real_t(vertex_id_t, AdjUnit<edge_data_t>*)> static_comp_func = nullptr,
-        std::function<real_t (Walker<walker_data_t>&, vertex_id_t, AdjUnit<edge_data_t> *)> dynamic_comp_func = nullptr,
-        std::function<real_t(vertex_id_t, AdjList<edge_data_t>*)> dcomp_upperbound_func = nullptr,
-        std::function<real_t(vertex_id_t, AdjList<edge_data_t>*)> dcomp_lowerbound_func = nullptr,
-        std::function<void(Walker<walker_data_t>&, vertex_id_t, AdjList<edge_data_t>*, real_t&, vertex_id_t&)> outlier_upperbound_func = nullptr,
-        std::function<AdjUnit<edge_data_t>*(Walker<walker_data_t>&, vertex_id_t, AdjList<edge_data_t>*, vertex_id_t)> outlier_search_func = nullptr
-    )
-    {
-        typedef Walker<walker_data_t> walker_t;
-        typedef Message<walker_t> walker_msg_t;
+        typedef stateQuery<query_data_t> query_t;
+        typedef stateResponse<response_data_t> response_t;
 
         Timer timer;
 
-        if (dynamic_comp_func != nullptr)
+        AliasTableContainer<edge_data_t>* alias_tables;
+        real_t *dcomp_lowerbound;
+        real_t *dcomp_upperbound;
+        bool outlier_opt_flag;
+        real_t *regular_area;
+
+        response_t* remote_response_cache;
+        SecondOrderCandidate<edge_data_t>* remote_fetch_candidate;
+        Message<query_t>* cached_request;
+
+        walker_msg_t *local_walkers;
+        walker_msg_t *local_walkers_bak;
+        walker_id_t local_walker_num;
+        walker_id_t active_walker_num;
+
+        bool collect_path_flag;
+        PathCollector *pc;
+    };
+
+    template<typename query_data_t, typename response_data_t, typename transition_config_t>
+    void internal_random_walk(WalkerConfig<edge_data_t, walker_data_t> *walker_config, transition_config_t *transition_config, WalkConfig* walk_config, int order)
+    {
+        typedef Walker<walker_data_t> walker_t;
+        typedef Message<walker_t> walker_msg_t;
+        typedef stateQuery<query_data_t> query_t;
+        typedef stateResponse<response_data_t> response_t;
+
+        walker_id_t walker_num = walker_config->walker_num;
+        size_t walker_array_size = walker_num;
+
+        InternalWalkData<query_data_t, response_data_t> walk_data;
+
+        walk_data.collect_path_flag = false;
+        walk_data.pc = nullptr;
+        if (walk_config->output_file_flag || walk_config->output_consumer_flag)
         {
-            assert(dcomp_upperbound_func != nullptr);
-        } else
-        {
-            assert(dcomp_upperbound_func == nullptr);
-            assert(dcomp_lowerbound_func == nullptr);
-            assert(outlier_upperbound_func == nullptr);
-            assert(outlier_search_func == nullptr);
-        }
-        assert(outlier_upperbound_func == nullptr && outlier_search_func == nullptr || outlier_upperbound_func != nullptr &&  outlier_search_func != nullptr);
-        bool outlier_opt_flag = false;
-        if (outlier_upperbound_func != nullptr)
-        {
-            outlier_opt_flag = true;
+            walk_data.collect_path_flag = true;
+            walk_data.pc = new PathCollector(this->worker_num);
         }
 
-        PathCollector *pc = nullptr;
-        if (output_flag)
+        walk_data.outlier_opt_flag = false;
+        if (transition_config->outlier_upperbound_func != nullptr)
         {
-            pc = new PathCollector(this->worker_num);
+            walk_data.outlier_opt_flag = true;
         }
 
-        walker_msg_t *local_walkers = nullptr;
-        walker_msg_t *local_walkers_bak = nullptr;
-        walker_id_t local_walker_num = 0;
-        init_walkers(local_walkers, local_walkers_bak, local_walker_num);
-        if (output_flag)
+        walk_data.remote_response_cache = nullptr;
+        walk_data.remote_fetch_candidate = nullptr;
+        walk_data.cached_request = nullptr;
+        if (order == 2)
         {
-#pragma omp parallel for
-            for (walker_id_t w_i = 0; w_i < local_walker_num; w_i++)
-            {
-                pc->add_footprint(Footprint(local_walkers[w_i].data.id, local_walkers[w_i].dst_vertex_id, 0), omp_get_thread_num());
-            }
+            walk_data.remote_response_cache = this->template alloc_array<response_t>(walker_array_size);
+            walk_data.remote_fetch_candidate = this->template alloc_array<SecondOrderCandidate<edge_data_t> >(walker_array_size);
+            walk_data.cached_request = this->template alloc_array<Message<query_t> > (walker_array_size);
         }
 
-        real_t* dcomp_upperbound = nullptr;
-        if (dcomp_upperbound_func != nullptr)
+        walk_data.dcomp_upperbound = nullptr;
+        if (transition_config->dcomp_upperbound_func != nullptr)
         {
-            init_dcomp_upperbound(dcomp_upperbound_func, dcomp_upperbound);
+            init_dcomp_upperbound(transition_config->dcomp_upperbound_func, walk_data.dcomp_upperbound);
         }
 
-        real_t* dcomp_lowerbound = nullptr;
-        if (dcomp_lowerbound_func != nullptr)
+        walk_data.dcomp_lowerbound = nullptr;
+        if (transition_config->dcomp_lowerbound_func != nullptr)
         {
-            init_dcomp_lowerbound(dcomp_lowerbound_func, dcomp_lowerbound);
+            init_dcomp_lowerbound(transition_config->dcomp_lowerbound_func, walk_data.dcomp_lowerbound);
         }
 
-        real_t *regular_area = nullptr;
-        if (outlier_opt_flag)
+        walk_data.regular_area = nullptr;
+        if (walk_data.outlier_opt_flag)
         {
-            regular_area = this->template alloc_vertex_array<real_t>();
+            walk_data.regular_area = this->template alloc_vertex_array<real_t>();
         }
-        AliasTableContainer<edge_data_t> *alias_tables = nullptr;
-        if (static_comp_func != nullptr)
+        walk_data.alias_tables = nullptr;
+        if (transition_config->static_comp_func != nullptr)
         {
-            init_alias_tables(static_comp_func, alias_tables, regular_area); 
-            if (outlier_opt_flag && dcomp_upperbound != nullptr)
+            init_alias_tables(transition_config->static_comp_func, walk_data.alias_tables, walk_data.regular_area); 
+            if (walk_data.outlier_opt_flag)
             {
                 vertex_id_t local_v_begin = this->get_local_vertex_begin();
                 vertex_id_t local_v_end = this->get_local_vertex_end();
 #pragma omp parallel for
                 for (vertex_id_t v_i = local_v_begin; v_i < local_v_end; v_i++)
                 {
-                    regular_area[v_i] *= dcomp_upperbound[v_i];
+                    walk_data.regular_area[v_i] *= walk_data.dcomp_upperbound[v_i];
                 }
             }
         } else
         {
-            if (outlier_opt_flag)
+            if (walk_data.outlier_opt_flag)
             {
                 vertex_id_t local_v_begin = this->get_local_vertex_begin();
                 vertex_id_t local_v_end = this->get_local_vertex_end();
 #pragma omp parallel for
                 for (vertex_id_t v_i = local_v_begin; v_i < local_v_end; v_i++)
                 {
-                    regular_area[v_i] = this->vertex_out_degree[v_i] * dcomp_upperbound[v_i];
+                    walk_data.regular_area[v_i] = this->vertex_out_degree[v_i] * walk_data.dcomp_upperbound[v_i];
                 }
             }
         }
 
-        this->set_msg_buffer(walker_num, sizeof(walker_msg_t));
+        if (walker_config->walker_init_dist_func == nullptr)
+        {
+            walker_config->walker_init_dist_func = this->get_equal_dist_func();
+        }
+        walk_data.local_walkers = this->template alloc_array<Message<Walker<walker_data_t> > >(walker_array_size);
+        walk_data.local_walkers_bak = this->template alloc_array<Message<Walker<walker_data_t> > >(walker_array_size);
 
-        walker_id_t active_walker_num = walker_num;    
+        walk_data.local_walker_num = init_walkers(walk_data.local_walkers, walk_data.local_walkers_bak, walker_num, walker_config->walker_init_dist_func, walker_config->walker_init_state_func);
+        walk_data.active_walker_num = walker_num;
+
+        if (walk_data.collect_path_flag)
+        {
+#pragma omp parallel for
+            for (walker_id_t w_i = 0; w_i < walk_data.local_walker_num; w_i++)
+            {
+                walk_data.pc->add_footprint(Footprint(walk_data.local_walkers[w_i].data.id, walk_data.local_walkers[w_i].dst_vertex_id, 0), omp_get_thread_num());
+            }
+        }
+
+        size_t max_msg_size = 0;
+        if (order == 1)
+        {
+            max_msg_size = sizeof(walker_msg_t);
+        } else
+        {
+            max_msg_size = std::max(sizeof(walker_msg_t), std::max(sizeof(Message<query_t>), sizeof(Message<response_t>)));
+        }
+        this->set_msg_buffer(walker_num, max_msg_size);
+
+        internal_walk_epoch(&walk_data, walker_config, transition_config);
+
+        if (walk_data.collect_path_flag)
+        {
+            auto* paths = walk_data.pc->assemble_path();
+            if (walk_config->output_file_flag)
+            {
+                std::string local_output_path = walk_config->output_path_prefix + "." + std::to_string(this->local_partition_id);
+                paths->dump(local_output_path.c_str(), walk_config->print_with_head_info);
+            }
+            if (walk_config->output_consumer_flag)
+            {
+                walk_config->output_consumer_func(paths);
+            } else
+            {
+                delete walk_data.pc;
+            }
+        }
+
+        if (walk_data.remote_response_cache != nullptr)
+        {
+            this->dealloc_array(walk_data.remote_response_cache, walker_array_size);
+        }
+        if (walk_data.remote_fetch_candidate != nullptr)
+        {
+            this->dealloc_array(walk_data.remote_fetch_candidate, walker_array_size);
+        }
+        if (walk_data.cached_request != nullptr)
+        {
+            this->dealloc_array(walk_data.cached_request, walker_array_size);
+        }
+
+        if (transition_config->static_comp_func != nullptr)
+        {
+            free_alias_tables(walk_data.alias_tables);
+        }
+        if (transition_config->dcomp_upperbound_func != nullptr)
+        {
+            free_dcomp_upperbound(walk_data.dcomp_upperbound);
+        }
+        if (transition_config->dcomp_lowerbound_func != nullptr)
+        {
+            free_dcomp_lowerbound(walk_data.dcomp_lowerbound);
+        }
+        if (walk_data.outlier_opt_flag)
+        {
+            this->dealloc_vertex_array(walk_data.regular_area);
+        }
+
+        this->dealloc_array(walk_data.local_walkers, walker_array_size);
+        this->dealloc_array(walk_data.local_walkers_bak, walker_array_size);
+    }
+
+    void internal_random_walk_wrap (WalkerConfig<edge_data_t, walker_data_t> *walker_config, TransitionConfig<edge_data_t, walker_data_t> *transition_config, WalkConfig *walk_config)
+    {
+        internal_random_walk<EmptyData, EmptyData> (walker_config, transition_config, walk_config, 1);
+    }
+
+    template<typename query_data_t, typename response_data_t>
+    void internal_random_walk_wrap (WalkerConfig<edge_data_t, walker_data_t> *walker_config, SecondOrderTransitionConfig<edge_data_t, walker_data_t, query_data_t, response_data_t> *transition_config, WalkConfig *walk_config)
+    {
+        internal_random_walk<query_data_t, response_data_t> (walker_config, transition_config, walk_config, 2);
+    }
+
+    template<typename query_data_t, typename response_data_t>
+    void internal_walk_epoch(
+        InternalWalkData<query_data_t, response_data_t> *walk_data,
+        WalkerConfig<edge_data_t, walker_data_t> *walker_config,
+        TransitionConfig<edge_data_t, walker_data_t> *transition_config
+    )
+    {
+        typedef Walker<walker_data_t> walker_t;
+        typedef Message<walker_t> walker_msg_t;
+
+        auto extension_comp_func = transition_config->extension_comp_func;
+        auto static_comp_func = transition_config->static_comp_func;
+        auto dynamic_comp_func = transition_config->dynamic_comp_func;
+        auto dcomp_upperbound_func = transition_config->dcomp_upperbound_func;
+        auto dcomp_lowerbound_func = transition_config->dcomp_lowerbound_func;
+        auto outlier_upperbound_func = transition_config->outlier_upperbound_func;
+        auto outlier_search_func = transition_config->outlier_search_func;
+
+        auto walker_update_state_func = walker_config->walker_update_state_func;
+
+        auto* alias_tables = walk_data->alias_tables;
+        auto* dcomp_lowerbound = walk_data->dcomp_lowerbound;
+        auto* dcomp_upperbound = walk_data->dcomp_upperbound;
+        auto outlier_opt_flag = walk_data->outlier_opt_flag;
+        auto* regular_area = walk_data->regular_area;
+
+        auto* local_walkers = walk_data->local_walkers;
+        auto* local_walkers_bak = walk_data->local_walkers_bak;
+        auto local_walker_num = walk_data->local_walker_num;
+
+        auto output_flag = walk_data->collect_path_flag;
+        auto* pc = walk_data->pc;
+
+        auto active_walker_num = walk_data->active_walker_num;    
         int super_step = 0;
         while (active_walker_num != 0)
         {
             #ifndef UNIT_TEST
             if (this->local_partition_id == 0)
             {
-                printf("step(%d), active(%u), time(%.3lf)\n", super_step++, active_walker_num, timer.duration());
+                printf("step(%d), active(%u), time(%.3lf)\n", super_step++, active_walker_num, walk_data->timer.duration());
             }
             #endif
             bool use_parallel = (active_walker_num >= OMP_PARALLEL_THRESHOLD);
@@ -735,42 +1050,13 @@ public:
                 active_walker_num >= PHASED_EXECTION_THRESHOLD * this->partition_num
             );
         }
-
-        if (output_flag)
-        {
-            path_data = pc->assemble_path();
-            delete pc;
-        }
-        free_walkers(local_walkers, local_walkers_bak);
-        if (static_comp_func != nullptr)
-        {
-            free_alias_tables(alias_tables);
-        }
-        if (dcomp_upperbound_func != nullptr)
-        {
-            free_dcomp_upperbound(dcomp_upperbound);
-        }
-        if (dcomp_lowerbound_func != nullptr)
-        {
-            free_dcomp_lowerbound(dcomp_lowerbound);
-        }
-        if (outlier_opt_flag)
-        {
-            this->dealloc_vertex_array(regular_area);
-        }
     }
 
     template<typename query_data_t, typename response_data_t>
-    void second_order_random_walk (
-        std::function<real_t (Walker<walker_data_t>&, vertex_id_t)> extension_comp_func,
-        std::function<real_t(vertex_id_t, AdjUnit<edge_data_t>*)> static_comp_func,
-        std::function<void (Walker<walker_data_t>&, walker_id_t, vertex_id_t, AdjUnit<edge_data_t> *)> post_query_func,
-        std::function<void (vertex_id_t, stateQuery<query_data_t> &, AdjList<edge_data_t>*)> respond_query_func,
-        std::function<real_t (Walker<walker_data_t>&, stateResponse<response_data_t> &, vertex_id_t, AdjUnit<edge_data_t> *)> dynamic_comp_func,
-        std::function<real_t(vertex_id_t, AdjList<edge_data_t>*)> dcomp_upperbound_func,
-        std::function<real_t(vertex_id_t, AdjList<edge_data_t>*)> dcomp_lowerbound_func = nullptr,
-        std::function<void(Walker<walker_data_t>&, vertex_id_t, AdjList<edge_data_t>*, real_t&, vertex_id_t&)> outlier_upperbound_func = nullptr,
-        std::function<AdjUnit<edge_data_t>*(Walker<walker_data_t>&, vertex_id_t, AdjList<edge_data_t>*, vertex_id_t)> outlier_search_func = nullptr
+    void internal_walk_epoch(
+        InternalWalkData<query_data_t, response_data_t> *walk_data,
+        WalkerConfig<edge_data_t, walker_data_t> *walker_config,
+        SecondOrderTransitionConfig<edge_data_t, walker_data_t, query_data_t, response_data_t> *transition_config
     )
     {
         typedef Walker<walker_data_t> walker_t;
@@ -778,108 +1064,44 @@ public:
         typedef stateQuery<query_data_t> query_t;
         typedef stateResponse<response_data_t> response_t;
 
-        Timer timer;
+        auto extension_comp_func = transition_config->extension_comp_func;
+        auto static_comp_func = transition_config->static_comp_func;
+        auto post_query_func = transition_config->post_query_func;
+        auto respond_query_func = transition_config->respond_query_func;
+        auto dynamic_comp_func = transition_config->dynamic_comp_func;
+        auto dcomp_upperbound_func = transition_config->dcomp_upperbound_func;
+        auto dcomp_lowerbound_func = transition_config->dcomp_lowerbound_func;
+        auto outlier_upperbound_func = transition_config->outlier_upperbound_func;
+        auto outlier_search_func = transition_config->outlier_search_func;
 
-        PathCollector *pc = nullptr;
-        if (output_flag)
-        {
-            pc = new PathCollector(this->worker_num);
-        }
+        auto walker_update_state_func = walker_config->walker_update_state_func;
 
-        if (dynamic_comp_func != nullptr)
-        {
-            assert(dcomp_upperbound_func != nullptr);
-        } else
-        {
-            assert(dcomp_upperbound_func == nullptr);
-            assert(dcomp_lowerbound_func == nullptr);
-            assert(outlier_upperbound_func == nullptr);
-            assert(outlier_search_func == nullptr);
-        }
-        assert(post_query_func != nullptr);
-        assert(respond_query_func != nullptr);
-        assert(outlier_upperbound_func == nullptr && outlier_search_func == nullptr || outlier_upperbound_func != nullptr &&  outlier_search_func != nullptr);
-        bool outlier_opt_flag = false;
-        if (outlier_upperbound_func != nullptr)
-        {
-            outlier_opt_flag = true;
-        }
+        auto* alias_tables = walk_data->alias_tables;
+        auto* dcomp_lowerbound = walk_data->dcomp_lowerbound;
+        auto* dcomp_upperbound = walk_data->dcomp_upperbound;
+        auto outlier_opt_flag = walk_data->outlier_opt_flag;
+        auto* regular_area = walk_data->regular_area;
 
-        response_t* remote_response_cache = this->template alloc_walker_array<response_t>();
-        SecondOrderCandidate<edge_data_t>* remote_fetch_candidate = this->template alloc_walker_array<SecondOrderCandidate<edge_data_t> >();
-        Message<query_t>* cached_request = this->template alloc_walker_array<Message<query_t> > ();
-        Message<query_t> *cached_request_end = cached_request;
+        auto* local_walkers = walk_data->local_walkers;
+        auto* local_walkers_bak = walk_data->local_walkers_bak;
+        auto local_walker_num = walk_data->local_walker_num;
 
-        walker_msg_t *local_walkers = nullptr;
-        walker_msg_t *local_walkers_bak = nullptr;
-        walker_id_t local_walker_num = 0;
-        init_walkers(local_walkers, local_walkers_bak, local_walker_num);
+        auto output_flag = walk_data->collect_path_flag;
+        auto* pc = walk_data->pc;
 
-        if (output_flag)
-        {
-#pragma omp parallel for
-            for (walker_id_t w_i = 0; w_i < local_walker_num; w_i++)
-            {
-                pc->add_footprint(Footprint(local_walkers[w_i].data.id, local_walkers[w_i].dst_vertex_id, 0), omp_get_thread_num());
-            }
-        }
+        auto* remote_response_cache = walk_data->remote_response_cache;
+        auto* remote_fetch_candidate = walk_data->remote_fetch_candidate;
+        auto* cached_request = walk_data->cached_request;
+        auto* cached_request_end = walk_data->cached_request;
 
-        real_t* dcomp_upperbound = nullptr;
-        if (dcomp_upperbound_func != nullptr)
-        {
-            init_dcomp_upperbound(dcomp_upperbound_func, dcomp_upperbound);
-        }
-
-        real_t* dcomp_lowerbound = nullptr;
-        if (dcomp_lowerbound_func != nullptr)
-        {
-            init_dcomp_lowerbound(dcomp_lowerbound_func, dcomp_lowerbound);
-        }
-
-        real_t *regular_area = nullptr;
-        if (outlier_opt_flag)
-        {
-            regular_area = this->template alloc_vertex_array<real_t>();
-        }
-        AliasTableContainer<edge_data_t> *alias_tables = nullptr;
-        if (static_comp_func != nullptr)
-        {
-            init_alias_tables(static_comp_func, alias_tables, regular_area); 
-            if (outlier_opt_flag)
-            {
-                vertex_id_t local_v_begin = this->get_local_vertex_begin();
-                vertex_id_t local_v_end = this->get_local_vertex_end();
-#pragma omp parallel for
-                for (vertex_id_t v_i = local_v_begin; v_i < local_v_end; v_i++)
-                {
-                    regular_area[v_i] *= dcomp_upperbound[v_i];
-                }
-            }
-        } else
-        {
-            if (outlier_opt_flag)
-            {
-                vertex_id_t local_v_begin = this->get_local_vertex_begin();
-                vertex_id_t local_v_end = this->get_local_vertex_end();
-#pragma omp parallel for
-                for (vertex_id_t v_i = local_v_begin; v_i < local_v_end; v_i++)
-                {
-                    regular_area[v_i] = this->vertex_out_degree[v_i] * dcomp_upperbound[v_i];
-                }
-            }
-        }
-
-        size_t max_msg_size = std::max(sizeof(walker_msg_t), std::max(sizeof(Message<query_t>), sizeof(Message<response_t>)));
-        this->set_msg_buffer(walker_num, max_msg_size);
-
-        walker_id_t active_walker_num = walker_num;    
+        walker_id_t active_walker_num = walk_data->active_walker_num;    
         int super_step = 0;
         while (active_walker_num != 0)
         {
             #ifndef UNIT_TEST
             if (this->local_partition_id == 0)
             {
-                printf("step(%d), active(%u), time(%.3lf)\n", super_step++, active_walker_num, timer.duration());
+                printf("step(%d), active(%u), time(%.3lf)\n", super_step++, active_walker_num, walk_data->timer.duration());
             }
             #endif
             bool use_parallel = (active_walker_num >= OMP_PARALLEL_THRESHOLD);
@@ -1129,47 +1351,10 @@ public:
                 active_walker_num >= PHASED_EXECTION_THRESHOLD * this->partition_num
             );
         }
-
-        if (output_flag)
-        {
-            path_data = pc->assemble_path();
-            delete pc;
-        }
-
-        if (remote_response_cache != nullptr)
-        {
-            this->dealloc_walker_array(remote_response_cache);
-        }
-        if (remote_fetch_candidate != nullptr)
-        {
-            this->dealloc_walker_array(remote_fetch_candidate);
-        }
-        if (cached_request != nullptr)
-        {
-            this->dealloc_walker_array(cached_request);
-        }
-
-        free_walkers(local_walkers, local_walkers_bak);
-        if (static_comp_func != nullptr)
-        {
-            free_alias_tables(alias_tables);
-        }
-        if (dcomp_upperbound_func != nullptr)
-        {
-            free_dcomp_upperbound(dcomp_upperbound);
-        }
-        if (dcomp_lowerbound_func != nullptr)
-        {
-            free_dcomp_lowerbound(dcomp_lowerbound);
-        }
-        if (outlier_opt_flag)
-        {
-            this->dealloc_vertex_array(regular_area);
-        }
     }
 
 #ifdef COLLECT_WALK_SEQUENCE
-    void collect_walk_sequence(std::vector<std::vector<vertex_id_t> > &sequence)
+    void collect_walk_sequence(std::vector<std::vector<vertex_id_t> > &sequence, walker_id_t walker_num)
     {
         std::thread send_thread([&]() {
             for (int t_i = 0; t_i < this->worker_num; t_i++)

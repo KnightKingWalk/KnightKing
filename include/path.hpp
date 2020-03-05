@@ -62,55 +62,52 @@ struct PathSet
         path_length = nullptr;
         path_num = nullptr;
     }
-};
-
-void _internal_free_path_data (PathSet &ps)
-{
-    if (ps.path_set != nullptr)
+    ~PathSet ()
     {
-        for (int s_i = 0; s_i < ps.seg_num; s_i++)
+        if (seg_num != 0)
         {
-            delete []ps.path_set[s_i];
-            delete []ps.walker_id[s_i];
-            delete []ps.path_begin[s_i];
-            delete []ps.path_end[s_i];
-            delete []ps.path_length[s_i];
-        }
-        delete []ps.path_set;
-        delete []ps.walker_id;
-        delete []ps.path_begin;
-        delete []ps.path_end;
-        delete []ps.path_length;
-        delete []ps.path_num;
-        ps = PathSet();
-    }
-}
-
-void _internal_write_path_data(PathSet ps, const char* output_path, bool with_head_info)
-{
-    Timer timer;
-    FILE* f = fopen(output_path, "w");
-    assert(f != NULL);
-    for (int wo_i = 0; wo_i < ps.seg_num; wo_i++)
-    {
-        for (walker_id_t wa_i = 0; wa_i < ps.path_num[wo_i]; wa_i++)
-        {
-            if (with_head_info)
+            for (int s_i = 0; s_i < seg_num; s_i++)
             {
-                fprintf(f, "%u %u", ps.walker_id[wo_i][wa_i], ps.path_length[wo_i][wa_i]);
+                delete []path_set[s_i];
+                delete []walker_id[s_i];
+                delete []path_begin[s_i];
+                delete []path_end[s_i];
+                delete []path_length[s_i];
             }
-            for (step_t p_i = 0; p_i < ps.path_length[wo_i][wa_i]; p_i++)
-            {
-                fprintf(f, " %u", *(ps.path_begin[wo_i][wa_i] + p_i));
-            }
-            fprintf(f, "\n");
+            delete []path_set;
+            delete []walker_id;
+            delete []path_begin;
+            delete []path_end;
+            delete []path_length;
+            delete []path_num;
         }
     }
-    fclose(f);
+    void dump(const char* output_path, bool with_head_info)
+    {
+        Timer timer;
+        FILE* f = fopen(output_path, "w");
+        assert(f != NULL);
+        for (int wo_i = 0; wo_i < seg_num; wo_i++)
+        {
+            for (walker_id_t wa_i = 0; wa_i < path_num[wo_i]; wa_i++)
+            {
+                if (with_head_info)
+                {
+                    fprintf(f, "%u %u", walker_id[wo_i][wa_i], path_length[wo_i][wa_i]);
+                }
+                for (step_t p_i = 0; p_i < path_length[wo_i][wa_i]; p_i++)
+                {
+                    fprintf(f, " %u", *(path_begin[wo_i][wa_i] + p_i));
+                }
+                fprintf(f, "\n");
+            }
+        }
+        fclose(f);
 #ifndef UNIT_TEST
-    printf("finish write path data in %lf seconds \n", timer.duration());
+        printf("finish write path data in %lf seconds \n", timer.duration());
 #endif
-}
+    }
+};
 
 class PathCollector
 {
@@ -164,7 +161,7 @@ public:
         }
     }
 
-    PathSet assemble_path()
+    PathSet* assemble_path()
     {
         Timer timer;
         //flush thread local fp
@@ -455,22 +452,22 @@ public:
             delete []task_begin[w_i];
             delete []task_end[w_i];
         }
-        PathSet ps;
-        ps.seg_num = worker_num;
-        ps.path_set = new vertex_id_t*[worker_num];
-        ps.walker_id = new walker_id_t*[worker_num];
-        ps.path_begin = new vertex_id_t**[worker_num];
-        ps.path_end = new vertex_id_t**[worker_num];
-        ps.path_length = new step_t*[worker_num];
-        ps.path_num = new walker_id_t[worker_num];
+        PathSet* ps = new PathSet();
+        ps->seg_num = worker_num;
+        ps->path_set = new vertex_id_t*[worker_num];
+        ps->walker_id = new walker_id_t*[worker_num];
+        ps->path_begin = new vertex_id_t**[worker_num];
+        ps->path_end = new vertex_id_t**[worker_num];
+        ps->path_length = new step_t*[worker_num];
+        ps->path_num = new walker_id_t[worker_num];
         for (int w_i = 0; w_i < worker_num; w_i++)
         {
-            ps.path_set[w_i] = path_set[w_i];
-            ps.walker_id[w_i] = walker_id[w_i];
-            ps.path_begin[w_i] = path_begin[w_i];
-            ps.path_end[w_i] = path_end[w_i];
-            ps.path_length[w_i] = path_length[w_i];
-            ps.path_num[w_i] = path_num[w_i];
+            ps->path_set[w_i] = path_set[w_i];
+            ps->walker_id[w_i] = walker_id[w_i];
+            ps->path_begin[w_i] = path_begin[w_i];
+            ps->path_end[w_i] = path_end[w_i];
+            ps->path_length[w_i] = path_length[w_i];
+            ps->path_num[w_i] = path_num[w_i];
         }
 #ifndef UNIT_TEST
         printf("finish assembling in %lf seconds\n", timer.duration());

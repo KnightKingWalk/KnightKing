@@ -28,13 +28,13 @@
 #include "static_comp.hpp"
 
 template<typename edge_data_t>
-void ppr(WalkEngine<edge_data_t, EmptyData> *graph, walker_id_t walker_num, real_t terminate_prob, std::vector<vertex_id_t>* start_vertices = nullptr)
+void ppr(WalkEngine<edge_data_t, EmptyData> *graph, walker_id_t walker_num, real_t terminate_prob, std::vector<vertex_id_t>* start_vertices = nullptr, WalkConfig* walk_conf = nullptr)
 {
     MPI_Barrier(MPI_COMM_WORLD);
     Timer timer;
 
     real_t extension_comp = 1 - terminate_prob;
-    graph->set_walkers(
+    WalkerConfig<edge_data_t, EmptyData> walker_conf(
         walker_num,
         nullptr,
         nullptr,
@@ -49,13 +49,14 @@ void ppr(WalkEngine<edge_data_t, EmptyData> *graph, walker_id_t walker_num, real
             }
         }
     );
-    graph->random_walk(
+    TransitionConfig<edge_data_t, EmptyData> tr_conf(
         [&] (Walker<EmptyData>& walker, vertex_id_t current_v)
         {
             return extension_comp;
         },
         get_trivial_static_comp(graph)
     );
+    graph->random_walk(&walker_conf, &tr_conf, walk_conf);
 
 #ifndef UNIT_TEST
     printf("total time %lfs\n", timer.duration());

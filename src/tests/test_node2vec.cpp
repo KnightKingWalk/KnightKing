@@ -172,7 +172,7 @@ void test_node2vec(vertex_id_t v_num, int worker_number)
 
     node2vec(&graph, n2v_conf);
     std::vector<std::vector<vertex_id_t> > rw_sequences;
-    graph.collect_walk_sequence(rw_sequences);
+    graph.collect_walk_sequence(rw_sequences, n2v_conf.walker_num);
 
     if (get_mpi_rank() == 0)
     {

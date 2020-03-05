@@ -106,7 +106,7 @@ struct Node2vecOutlierFuncWrapper
 real_t Node2vecOutlierFuncWrapper::overflow_prob = 0.0;
 
 template<typename edge_data_t>
-void node2vec(WalkEngine<edge_data_t, Node2vecState> *graph, Node2vecConf conf)
+void node2vec(WalkEngine<edge_data_t, Node2vecState> *graph, Node2vecConf conf, WalkConfig *walk_conf = nullptr)
 {
     MPI_Barrier(MPI_COMM_WORLD);
     Timer timer;
@@ -125,7 +125,7 @@ void node2vec(WalkEngine<edge_data_t, Node2vecState> *graph, Node2vecConf conf)
     });
     real_t upperbound = std::max(1.0, 1.0 / q);
     real_t lowerbound = std::min(1.0 / p, std::min(1.0, 1.0 / q));
-    graph->set_walkers(
+    WalkerConfig<edge_data_t, Node2vecState> walker_conf(
         walker_num,
         nullptr,
         [&] (Walker<Node2vecState> &walker, vertex_id_t current_v, AdjUnit<edge_data_t> *edge)
@@ -138,7 +138,7 @@ void node2vec(WalkEngine<edge_data_t, Node2vecState> *graph, Node2vecConf conf)
     auto outlier_upperbound_func = Node2vecOutlierFuncWrapper::get_node2vec_outlier_upperbound_func(graph);
     auto outlier_search_func = Node2vecOutlierFuncWrapper::get_node2vec_outlier_search_func(graph);
 
-    graph->template second_order_random_walk<vertex_id_t, bool> (
+    SecondOrderTransitionConfig<edge_data_t, Node2vecState, vertex_id_t, bool> tr_conf(
         [&] (Walker<Node2vecState> &walker, vertex_id_t current_v)
         {
             return walker.step >= walk_length ? 0.0 : 1.0;
@@ -194,6 +194,7 @@ void node2vec(WalkEngine<edge_data_t, Node2vecState> *graph, Node2vecConf conf)
         outlier_upperbound_func,
         outlier_search_func
     );
+    graph->random_walk(&walker_conf, &tr_conf, walk_conf);
 
 #ifndef UNIT_TEST
     printf("total time %lfs\n", timer.duration());

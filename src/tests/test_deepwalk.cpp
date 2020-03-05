@@ -57,7 +57,7 @@ void test_deepwalk(vertex_id_t v_num, int worker_number)
 
     deepwalk(&graph, walker_num, walk_length);
     std::vector<std::vector<vertex_id_t> > rw_sequences;
-    graph.collect_walk_sequence(rw_sequences);
+    graph.collect_walk_sequence(rw_sequences, walker_num);
 
     if (get_mpi_rank() == 0)
     {

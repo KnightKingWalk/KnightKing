@@ -250,7 +250,7 @@ void test_metapath(vertex_id_t v_num, int worker_number)
 
     std::vector<std::vector<vertex_id_t> > rw_sequences;
     std::vector<Walker<MetapathState> > walker_init_state;
-    graph.collect_walk_sequence(rw_sequences);
+    graph.collect_walk_sequence(rw_sequences, walker_num);
     graph.collect_walker_init_state(walker_init_state);
 
     if (get_mpi_rank() == 0)

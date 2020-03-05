@@ -39,18 +39,18 @@
 #include "../apps/ppr.hpp"
 #include "../apps/node2vec.hpp"
 
-void check_path_data(PathSet ps, std::vector<std::vector<vertex_id_t> > &std_ps)
+void check_path_data(PathSet *ps, std::vector<std::vector<vertex_id_t> > &std_ps)
 {
-    for (int s_i = 0; s_i < ps.seg_num; s_i++)
+    for (int s_i = 0; s_i < ps->seg_num; s_i++)
     {
-        for (walker_id_t p_i = 0; p_i < ps.path_num[s_i]; p_i++)
+        for (walker_id_t p_i = 0; p_i < ps->path_num[s_i]; p_i++)
         {
-            walker_id_t walker = ps.walker_id[s_i][p_i];
+            walker_id_t walker = ps->walker_id[s_i][p_i];
             ASSERT_TRUE(0 <= walker && walker < std_ps.size());
-            ASSERT_EQ(ps.path_length[s_i][p_i], std_ps[walker].size());
-            ASSERT_EQ(ps.path_length[s_i][p_i], ps.path_end[s_i][p_i] - ps.path_begin[s_i][p_i]);
+            ASSERT_EQ(ps->path_length[s_i][p_i], std_ps[walker].size());
+            ASSERT_EQ(ps->path_length[s_i][p_i], ps->path_end[s_i][p_i] - ps->path_begin[s_i][p_i]);
             step_t step = 0;
-            for (auto p = ps.path_begin[s_i][p_i]; p != ps.path_end[s_i][p_i]; p++)
+            for (auto p = ps->path_begin[s_i][p_i]; p != ps->path_end[s_i][p_i]; p++)
             {
                 EXPECT_EQ(*p, std_ps[walker][step]);
                 step++;
@@ -59,18 +59,18 @@ void check_path_data(PathSet ps, std::vector<std::vector<vertex_id_t> > &std_ps)
     }
 
     walker_id_t local_path_num = 0;
-    for (int s_i = 0; s_i < ps.seg_num; s_i++)
+    for (int s_i = 0; s_i < ps->seg_num; s_i++)
     {
-        local_path_num += ps.path_num[s_i];
+        local_path_num += ps->path_num[s_i];
     }
     walker_id_t tot_path_num;
     MPI_Allreduce(&local_path_num, &tot_path_num, 1, get_mpi_data_type<walker_id_t>(), MPI_SUM, MPI_COMM_WORLD);
     ASSERT_EQ(tot_path_num, std_ps.size());
 
     std::thread send_thread([&]() {
-        for (int s_i = 0; s_i < ps.seg_num; s_i++)
+        for (int s_i = 0; s_i < ps->seg_num; s_i++)
         {
-            MPI_Send(ps.walker_id[s_i], ps.path_num[s_i], get_mpi_data_type<walker_id_t>(), 0, 0, MPI_COMM_WORLD);
+            MPI_Send(ps->walker_id[s_i], ps->path_num[s_i], get_mpi_data_type<walker_id_t>(), 0, 0, MPI_COMM_WORLD);
         }
     });
     if (get_mpi_rank() == 0)
@@ -78,7 +78,7 @@ void check_path_data(PathSet ps, std::vector<std::vector<vertex_id_t> > &std_ps)
         std::vector<bool> vis(tot_path_num, false);
         for (partition_id_t p_i = 0; p_i < get_mpi_size(); p_i++)
         {
-            for (int s_i = 0; s_i < ps.seg_num; s_i++)
+            for (int s_i = 0; s_i < ps->seg_num; s_i++)
             {
                 int recv_size = 0;
                 MPI_Status recv_status;
@@ -125,18 +125,23 @@ void test_first_order_path(vertex_id_t v_num, int worker_number)
     WalkEngine<EmptyData, EmptyData> graph;
     graph.set_concurrency(worker_number);
     graph.load_graph(v_num, test_data_file);
-    graph.set_output();
+
+    PathSet *ps;
+    WalkConfig walk_conf;
+    walk_conf.set_output_consumer(
+        [&] (PathSet* ps_param) {
+            ps = ps_param;
+        }
+    );
 
     real_t terminate_prob = 1.0 / 80;
     walker_id_t walker_num = graph.get_vertex_num() * 50 + graph.get_edge_num() * 10 + rand() % 100;
     MPI_Bcast(&walker_num, 1, get_mpi_data_type<walker_id_t>(), 0, MPI_COMM_WORLD);
 
-    ppr(&graph, walker_num, terminate_prob);
-    graph.collect_walk_sequence(rw_sequences);
+    ppr(&graph, walker_num, terminate_prob, nullptr, &walk_conf);
+    graph.collect_walk_sequence(rw_sequences, walker_num);
     broadcast_rw_sequences(rw_sequences);
-    PathSet ps = graph.get_path_data();
     check_path_data(ps, rw_sequences);
-    graph.free_path_data(ps);
 }
 
 void test_second_order_path(vertex_id_t v_num, int worker_number)
@@ -145,7 +150,14 @@ void test_second_order_path(vertex_id_t v_num, int worker_number)
     WalkEngine<EmptyData, Node2vecState> graph;
     graph.set_concurrency(worker_number);
     graph.load_graph(v_num, test_data_file);
-    graph.set_output();
+
+    PathSet *ps;
+    WalkConfig walk_conf;
+    walk_conf.set_output_consumer(
+        [&] (PathSet* ps_param) {
+            ps = ps_param;
+        }
+    );
 
     Node2vecConf n2v_conf;
     n2v_conf.walker_num = graph.get_vertex_num() * 50 + graph.get_edge_num() * 10 + rand() % 100;
@@ -162,12 +174,11 @@ void test_second_order_path(vertex_id_t v_num, int worker_number)
     }
     MPI_Bcast(&n2v_conf, sizeof(n2v_conf), get_mpi_data_type<char>(), 0, MPI_COMM_WORLD);
 
-    node2vec(&graph, n2v_conf);
-    graph.collect_walk_sequence(rw_sequences);
+    node2vec(&graph, n2v_conf, &walk_conf);
+    graph.collect_walk_sequence(rw_sequences, n2v_conf.walker_num);
     broadcast_rw_sequences(rw_sequences);
-    PathSet ps = graph.get_path_data();
     check_path_data(ps, rw_sequences);
-    graph.free_path_data(ps);
+    delete ps;
 }
 
 void test_path(int order)

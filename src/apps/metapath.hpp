@@ -68,7 +68,7 @@ std::function<real_t(vertex_id_t, AdjUnit<WeightedMetaData>*)> get_metapath_stat
 }
 
 template<typename edge_data_t>
-void metapath(WalkEngine<edge_data_t, MetapathState> *graph, std::vector<std::vector<std::vector<bool> > > schemes, walker_id_t walker_num, step_t walk_length)
+void metapath(WalkEngine<edge_data_t, MetapathState> *graph, std::vector<std::vector<std::vector<bool> > > schemes, walker_id_t walker_num, step_t walk_length, WalkConfig *walk_conf = nullptr)
 {
     MPI_Barrier(MPI_COMM_WORLD);
     Timer timer;
@@ -86,7 +86,7 @@ void metapath(WalkEngine<edge_data_t, MetapathState> *graph, std::vector<std::ve
             return 0;
         }
     );
-    graph->set_walkers(
+    WalkerConfig<edge_data_t, MetapathState> walker_conf(
         walker_num,
         [&] (Walker<MetapathState> &walker, vertex_id_t start_vertex)
         {
@@ -98,7 +98,7 @@ void metapath(WalkEngine<edge_data_t, MetapathState> *graph, std::vector<std::ve
             walker.data.state = (walker.data.state + 1) % schemes[walker.data.scheme_id].size();
         }
     );
-    graph->random_walk(
+    TransitionConfig<edge_data_t, MetapathState> tr_conf(
         [&] (Walker<MetapathState> &walker, vertex_id_t current_v)
         {
             return (walker.step >= walk_length || !(vertex_masks[current_v] & scheme_masks[walker.data.scheme_id][walker.data.state])) ? 0.0 : 1.0;
@@ -119,6 +119,7 @@ void metapath(WalkEngine<edge_data_t, MetapathState> *graph, std::vector<std::ve
             return 1.0;
         }
     );
+    graph->random_walk(&walker_conf, &tr_conf, walk_conf);
     graph->dealloc_vertex_array(vertex_masks);
 
 #ifndef UNIT_TEST
