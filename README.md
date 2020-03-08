@@ -15,7 +15,7 @@ Contributors: Ke Yang<sup>1 </sup>, Mingxing Zhang<sup>1, 2</sup>, Kang Chen<sup
 
 ## Update
 
-In this update, KnightKing is updated with new functionalities. But its APIs also change greatly. For its old version, please refer to the v0_1_0 tag. Sorry for the inconvenience.
+In this update, KnightKing has new functionalities. But its APIs also change greatly. For its old version, please refer to the v0_1_0 tag. Sorry for the inconvenience.
 
 ## Content
 
@@ -504,10 +504,10 @@ A sample traversing code:
 PathSet *ps = nullptr;
 WalkConfig walk_conf;
 walk_conf.set_output_consumer(
-	[&] (PathSet* ps_param) {
-    	// Assume only has one iteration
-  		ps = ps_param;
-	}
+    [&] (PathSet* ps_param) {
+        // Assume only has one iteration
+        ps = ps_param;
+    }
 );
 graph.random_walk(&walker_conf, &tr_conf, &walk_conf);
 for (int i = 0; i < ps->seg_num; i++)
