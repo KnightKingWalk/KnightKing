@@ -15,7 +15,12 @@ Contributors: Ke Yang<sup>1 </sup>, Mingxing Zhang<sup>1, 2</sup>, Kang Chen<sup
 
 ## Update
 
-In this update, KnightKing has new functionalities. But its APIs also change greatly. For its old version, please refer to the v0_1_0 tag. Sorry for the inconvenience.
+In this update, KnightKing has new functionalities:
+
+- KnightKing now is stateless. Users can set the walks via **WalkConfig**, **WalkerConfig**, and **TransitionConfig**. Each time **random_walk** is invoked, a new random walk execution is launched, which is configured by the above 3 configurations. As a result, users now can launch multiple different random walks on the same engine.
+- KnightKing supports breaking random walk into multiple epochs. In each epoch only a fraction of walkers are processed. This can save a lot of memory.
+
+But its APIs also change greatly. For its old version, please refer to the v0_1_0 tag. Sorry for the inconvenience.
 
 ## Content
 
