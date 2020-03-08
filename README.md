@@ -13,6 +13,15 @@ Contributors: Ke Yang<sup>1 </sup>, Mingxing Zhang<sup>1, 2</sup>, Kang Chen<sup
 
 <sup>1 </sup> Tsinghua University, <sup>2 </sup>Sangfor, <sup>3 </sup>QCRI, <sup>4 </sup>4 Paradigm.
 
+## Update
+
+In this update, KnightKing has new functionalities:
+
+- KnightKing now is stateless. Users can set the walks via **WalkConfig**, **WalkerConfig**, and **TransitionConfig**. Each time **random_walk** is invoked, a new random walk execution is launched, which is configured by the above 3 configurations. As a result, users now can launch multiple different random walks on the same engine.
+- KnightKing supports breaking random walk into multiple epochs. In each epoch only a fraction of walkers are processed. This can save a lot of memory.
+
+But its APIs also change greatly. For its old version, please refer to the v0_1_0 tag. Sorry for the inconvenience.
+
 ## Content
 
 - [Quick Start](#Quick-Start)
@@ -77,14 +86,18 @@ Use "-h" option to print out node2vec's options
 
 
   OPTIONS:
-
       -h, --help                        Display this help menu
       -v[vertex]                        vertex number
       -g[graph]                         graph data path
+      --make-undirected                 load graph and treat each edge as
+                                        undirected edge
       -w[walker]                        walker number
       -o[output]                        [optional] the output path. Omit this
                                         option for pure random walk performance
                                         testing without output.
+      -r[rate]                          Set this option will break random walk
+                                        into multiple iterations to save memory.
+                                        Each iteration has rate% walkers.
       -l[length]                        walk length
       -s[static_comp]                   [weighted | unweighted] a weighted graph
                                         usually indicates a non-trivial static
@@ -99,9 +112,13 @@ A graph random walk application usually takes a graph as input, then setups a gr
 
 "-g" option specifies the path of input graph file.
 
+"--make-undirected" option will treat each edge as undirected edge. For each edge (u, v) in the file, a new edge of (v, u) will be created.
+
 "-w" option specifies how many walkers there are.
 
-"-o" option specifies the path of output directory. This is an optional paramemter. If this parameter is set, then after random walk, the walking path of each walker will be dumped to the output directory.
+"-o" option specifies the prefix of the name of output files. This is an optional paramemter. If this parameter is set, then after random walk, the walking paths will be dumped to the disk.
+
+"-r" option will break random walk into multiple epochs. Each iteration has rate% walkers. Use this option if memory is not enough to hold all walkers and their paths.
 
 "-l" option specifies the walk length. Node2vec is a truncated random walk, which means each walker walks a pre-defined length.
 
@@ -119,23 +136,21 @@ Then we can invoke node2vec:
 
 ```
 mkdir out
-./bin/node2vec -g ./karate.data -v 34 -w 5 -s weighted -l 10 -p 2 -q 0.5 -o ./out
+./bin/node2vec -g ./karate.data -v 34 -w 5 -s weighted -l 10 -p 2 -q 0.5 -o ./out/walks.txt
 ```
 
 See the random walk output:
 
 ```
-~/graph/KnightKing/build$ cat ./out/path_0.txt
-0 11 0 5 16 6 4 6 16 6 4 6 16
-1 11 1 21 0 2 8 30 33 15 32 8 32
-2 11 2 13 0 10 0 31 0 6 16 5 0
-3 11 3 12 0 11 0 17 1 2 9 33 30
-4 11 4 0 1 21 1 17 1 2 8 32 2
+~/graph/KnightKing/build$ cat ./out/walks.txt.0
+0 5 16 6 4 6 16 6 4 6 16
+1 21 0 2 8 30 33 15 32 8 32
+2 13 0 10 0 31 0 6 16 5 0
+3 12 0 11 0 17 1 2 9 33 30
+4 0 1 21 1 17 1 2 8 32 2
 ```
 
-There are 5 lines, each representing the path for one walker.
-
-For each line, the first integer denotes the walker ID. The second integer denotes the length of the path. Next are (length + 1) integer, denotes the path, i.e. the vertex ID in the order the walker has visited. 
+There are 5 lines, each representing a path for one walker.
 
 Note that you may have an output different from above example. Since this is a random walk, so the output is also random.
 
@@ -144,13 +159,13 @@ Note that you may have an output different from above example. Since this is a r
 First, copy the graph file to the same path of each node, or simply place it to a shared file system. Second, write each node's IP address to a text file (e.g. ./hosts). Then use MPI to run the application. Suppose the graph file is placed at ./karate.data. For OpenMPI:
 
 ```
-mpiexec -npernode 1 -hostfile ./hosts ./bin/node2vec -g ./karate.data -v 34 -w 34 -s weighted -l 80 -p 2 -q 0.5 -o ./out
+mpiexec -npernode 1 -hostfile ./hosts ./bin/node2vec -g ./karate.data -v 34 -w 34 -s weighted -l 80 -p 2 -q 0.5 -o ./out/walks.txt
 ```
 
 For MPICH:
 
 ```
-mpiexec -np 1 -hostfile ./hosts ./bin/node2vec -g ./karate.data -v 34 -w 34 -s weighted -l 80 -p 2 -q 0.5 -o ./out
+mpiexec -np 1 -hostfile ./hosts ./bin/node2vec -g ./karate.data -v 34 -w 34 -s weighted -l 80 -p 2 -q 0.5 -o ./out/walks.txt
 ```
 
 The "-npernode 1" or -"np 1" setting is recommended, which tells MPI to instantiate one instance per node. KnightKing will automatically handle the concurrency within each node. Instantiating more than one instances per node may make the graph more fragmented and thus hinge the performance.
@@ -158,7 +173,7 @@ The "-npernode 1" or -"np 1" setting is recommended, which tells MPI to instanti
 See the random walk output:
 
 ```
-cat ./out/path_*.txt
+cat ./out/walks.txt.*
 ```
 
 ## Create Your Own Applications
@@ -176,27 +191,35 @@ WalkEngine<real_t, EmptyData> graph;
 graph.load_graph(34 /*vertex number*/, "./karate.data" /*graph file path*/);
 ```
 
-**Step 2:** Set the number of walkers:
+**Step 2:** Set walk configuration:
 
 ```c++
-graph.set_walkers(34 /*walker number*/);
+WalkConfig walk_conf;
+walk_conf.set_output_file("./out/walks.txt");
 ```
 
-**Step 3**: Define the extension component, which controls the termination condition and sets the probability to continue to walk:
+**Step 3:** Set walker configuration:
+
+```c++
+WalkerConfig<real_t, EmptyData> walker_conf(34 /*walker number*/);
+```
+
+**Step 4**: Define the extension component, which controls the termination condition and sets the probability to continue to walk:
 
 ```c++
 auto extension_comp = [&] (Walker<EmptyData>& walker, vertex_id_t current_v)
 {
     return 0.875; /*the probability to continue the walk*/
 };
+TransitionConfig<real_t, EmptyData> tr_conf(extension_comp);
 ```
 
 In this case, at each step, each active walker will terminate at a probability of 0.125.
 
-Once the function *walk* is invoked, KnightKing will begin the random walk process until all walkers terminate:
+After the configuration, invoke the function *random_walk*, then KnightKing will begin the random walk process until all walkers terminate:
 
 ```c++
-graph.random_walk(extension_comp);
+graph.random_walk(&walker_conf, &tr_conf, &walk_conf);
 ```
 
 The complete sample code can be found in [src/examples/simple_walk.cpp](src/examples/simple_walk.cpp).
@@ -225,12 +248,13 @@ auto static_comp = [&] (vertex_id_t v, AdjUnit<real_t> *edge)
 {
     return edge->data; /*edge->data is a real number denoting edge weight*/
 };
+TransitionConfig<real_t, EmptyData> tr_conf(extension_comp, static_comp);
 ```
 
 Then invoke the random walk:
 
 ```
-graph.random_walk(extenstion_comp, static_comp);
+graph.random_walk(&walker_conf, &tr_conf, &walk_conf);
 ```
 
 The complete sample code can be found in [src/examples/biased_walk.cpp](src/examples/biased_walk.cpp).
@@ -266,7 +290,7 @@ auto update_walker_func = [&] (Walker<WalkState> &walker, vertex_id_t current_v,
 {
     walker.data.last_vertex = current_v;
 };
-graph.set_walkers(34, init_walker_func, update_walker_func);
+WalkerConfig<real_t, WalkState> walker_conf(34, init_walker_func, update_walker_func);
 ```
 
 Then define dynamic component and its upper bound:
@@ -292,12 +316,13 @@ auto dynamic_comp_upperbound = [&] (vertex_id_t v_id, AdjList<real_t> *adj_lists
 {
     return 2.0;
 };
+TransitionConfig<real_t, WalkState> tr_conf(extension_comp, static_comp, dynamic_comp, dynamic_comp_upperbound);
 ```
 
 Then invoke the random walk:
 
 ```c++
-graph.random_walk(extenstion_comp, static_comp, dynamic_comp, upper_bound);
+graph.random_walk(&walker_conf, &tr_conf, &walk_conf);
 ```
 
 The complete sample code can be found in [src/examples/dynamic_walk.cpp](src/examples/dynamic_walk.cpp).
@@ -333,12 +358,12 @@ These two properties are automatically maintained by KnightKing.
 
 Users can define additional properties using the **data** field.
 
-#### Walker Setting
+#### Walker Configuration 
 
-The function *set_walkers* defines walkers' properties. Its definition is:
+The class *WalkerConfig* defines walkers' properties. Its constructor is:
 
 ```c++
-void set_walkers(
+WalkerConfig(
     walker_id_t walker_num,
     std::function<void (Walker<walker_data_t>&, vertex_id_t)> walker_init_state_func = nullptr,
     std::function<void (Walker<walker_data_t>&, vertex_id_t, AdjUnit<edge_data_t> *)> walker_update_state_func = nullptr,
@@ -363,10 +388,10 @@ void set_walkers(
 
 #### First Order Random Walk
 
-To define the edge transition probability for random walk, users need to define the extension component, static component, and dynamic component, respectively. Then invoke the *random_walk* function to start walking:
+To define the edge transition probability for random walk, users need to define the extension component, static component, and dynamic component, respectively. These components are wrapped in class **TransitionConfig**.
 
 ```c++
-void random_walk(
+TransitionConfig(
     std::function<real_t (Walker<walker_data_t>&, vertex_id_t)> extension_comp_func,
     std::function<real_t (vertex_id_t, AdjUnit<edge_data_t>*)> static_comp_func = nullptr,
     std::function<real_t (Walker<walker_data_t>&, vertex_id_t, AdjUnit<edge_data_t> *)> dynamic_comp_func = nullptr,
@@ -414,7 +439,7 @@ With first-order walk algorithms, walkers are oblivious to the vertices visited 
 In distributed environment, the previously visited vertex and currently residing vertex may not locate at the same node. So access previously visited vertex information from currently residing vertex requires communications. Thus to run second order random walk, two additional functions are required for communication.
 
 ```c++
-void second_order_random_walk(
+SecondOrderTransitionConfig(
     std::function<real_t (Walker<walker_data_t>&, vertex_id_t)> extension_comp_func,
     std::function<real_t (vertex_id_t, AdjUnit<edge_data_t>*)> static_comp_func,
     std::function<void (Walker<walker_data_t>&, walker_id_t, vertex_id_t, AdjUnit<edge_data_t> *)> post_query_func,
@@ -431,42 +456,23 @@ void second_order_random_walk(
 
 **respond_query_func**: This function receives a query message, generates corresponding response and sends it back.
 
-### Miscellaneous
+## Walk Configuration
 
-#### Load Graph
-
-**load_graph**: This function takes the vertex number and graph data file path as input, and loads the graph into memory.
+Some miscellaneous parameters are put into the **WalkConfig**, which supports following settings:
 
 ```c++
-void load_graph(vertex_id_t vertex_num, const char* graph_file_path);
+void set_output_file(const char* output_path_prefix_param, bool with_head_info = false);
+void set_output_consumer(std::function<void (PathSet*)> output_consumer_func_param);
+void set_walk_rate(double rate_param);
 ```
 
-#### Set Concurrency
-**set_concurrency**: This function sets the number of threads for concurrent task execution. The default setting is std::thread::hardware_concurrency() - 1, i.e. the number of cores minus one. This number is set slightly lower than core number in default, since there are two additional threads that are responsible for message sending and receiving.
+**set_output_file**: This function tells KnightKing to record the walking paths for the walkers, and dump the paths into files.
 
-```c++
-void set_concurrency(int worker_num);
-```
+**set_output_consumer**: This function tells KnightKing to record the walking paths for the walkers, and return them to users via a callback function provided by users. The paths are placed at a class *PathSet*, the detail of which will be given later.
 
-#### Output
+Note that output file and consumer can be set at the same time. In this case, paths will first be flushed to files, then be given to users.
 
-**set_output**: This function tells KnightKing to record the walking paths for the walkers.
-
-**get_path_data**: This function returns *PathSet* object, which records the walking paths for the walkers. The detail of *PathSet* will be given later.
-
-**dump_path_data**: This function takes a *PathSet* object and a directory as input, and dump walking paths to that directory.
-
-**free_path_data**: If users get a *PathSet* object via *get_path_data* function, then must manually free the object by this function.
-
-A sample usage is:
-
-```c++
-graph.set_output();
-graph.random_walk(extension_comp);
-PathSet path_data = graph.get_path_data();
-graph.dump_path_data(path_data, opt.output_path.c_str());
-graph.free_path_data(path_data);
-```
+**set_walk_rate**: As introduced before, to save memory, this function sets how many walkers can simutaneously walk. For example, set walk rate to 0.5, then there will be 2 epochs. Each time 50% walkers will walk. After they stop, if the output file is set, then the walks will be flushed to files before the next epoch. If the output consumer is set, then the walks will be given to users before the next epoch.
 
 Instead of dumping the paths, users can directly pass the in-memory output data to other applications. The paths are stored in *PathSet* object:
 
@@ -500,19 +506,44 @@ The *path_begin\[i\]\[j\]* and *path_end\[i\]\[j\]* specifies the begin and end 
 A sample traversing code:
 
 ```c++
-PathSet path_data = graph.get_path_data();
-for (int i = 0; i < path_data.seg_num; i++)
+PathSet *ps = nullptr;
+WalkConfig walk_conf;
+walk_conf.set_output_consumer(
+    [&] (PathSet* ps_param) {
+        // Assume only has one iteration
+        ps = ps_param;
+    }
+);
+graph.random_walk(&walker_conf, &tr_conf, &walk_conf);
+for (int i = 0; i < ps->seg_num; i++)
 {
-    for (walker_id_t j = 0; j < path_data.path_num[wo_i]; j++)
+    for (walker_id_t j = 0; j < ps->path_num[wo_i]; j++)
     {
-        printf("%u %u", path_data.walker_id[i][j], path_data.path_length[i][j]);
-        for (step_t k = 0; k < path_data.path_length[i][j]; k++)
+        printf("%u %u", ps->walker_id[i][j], ps->path_length[i][j]);
+        for (step_t k = 0; k < ps->path_length[i][j]; k++)
         {
-            printf(" %u", *(path_data.path_begin[i][j] + k));
+            printf(" %u", *(ps->path_begin[i][j] + k));
         }
         printf("\n");
     }
 }
+```
+
+### Miscellaneous
+
+#### Load Graph
+
+**load_graph**: This function takes the vertex number and graph data file path as input, and loads the graph into memory.
+
+```c++
+void load_graph(vertex_id_t vertex_num, const char* graph_file_path, bool load_as_undirected = false);
+```
+
+#### Set Concurrency
+**set_concurrency**: This function sets the number of threads for concurrent task execution. The default setting is std::thread::hardware_concurrency() - 1, i.e. the number of cores minus one. This number is set slightly lower than core number in default, since there are two additional threads that are responsible for message sending and receiving.
+
+```c++
+void set_concurrency(int worker_num);
 ```
 
 ### Constants

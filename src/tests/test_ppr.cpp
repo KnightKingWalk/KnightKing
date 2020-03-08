@@ -55,7 +55,7 @@ void test_ppr(vertex_id_t v_num, int worker_number)
     MPI_Bcast(&walker_num, 1, get_mpi_data_type<walker_id_t>(), 0, MPI_COMM_WORLD);
 
     ppr(&graph, walker_num, terminate_prob);
-    graph.collect_walk_sequence(rw_sequences);
+    graph.collect_walk_sequence(rw_sequences, walker_num);
 
     if (get_mpi_rank() == 0)
     {

@@ -68,7 +68,7 @@ public:
 };
 
 template<typename edge_data_t>
-void check_edges(GraphTester<edge_data_t>* graph)
+void check_edges(GraphTester<edge_data_t>* graph, bool load_as_undirected = false)
 {
     std::vector<Edge<edge_data_t> > local_graph_edges;
     graph->get_edges(graph->csr, local_graph_edges);
@@ -77,6 +77,20 @@ void check_edges(GraphTester<edge_data_t>* graph)
         Edge<edge_data_t> *std_edges;
         edge_id_t std_edge_num;
         read_graph(test_data_file, 0, 1, std_edges, std_edge_num);
+        if (load_as_undirected)
+        {
+            std::vector<Edge<edge_data_t> > temp;
+            for (edge_id_t e_i = 0; e_i < std_edge_num; e_i++)
+            {
+                temp.push_back(std_edges[e_i]);
+                std::swap(std_edges[e_i].src, std_edges[e_i].dst);
+                temp.push_back(std_edges[e_i]);
+            }
+            delete []std_edges;
+            std_edge_num *= 2;
+            std_edges = new Edge<edge_data_t>[std_edge_num];
+            memcpy(std_edges, temp.data(), sizeof(Edge<edge_data_t>) * std_edge_num);
+        }
         auto graph_edges = local_graph_edges;
         for (partition_id_t p_i = 1; p_i < get_mpi_size(); p_i++)
         {
@@ -100,18 +114,18 @@ void check_edges(GraphTester<edge_data_t>* graph)
 }
 
 template<typename edge_data_t>
-void test_static_edge(vertex_id_t v_num)
+void test_static_edge(vertex_id_t v_num, bool load_as_undirected = false)
 {
     GraphTester<edge_data_t> graph;
     int worker_number = rand() % 8 + 1;
     graph.set_concurrency(worker_number);
-    graph.load_graph(v_num, test_data_file);
-    check_edges(&graph);
+    graph.load_graph(v_num, test_data_file, load_as_undirected);
+    check_edges(&graph, load_as_undirected);
 }
 
 
 template<typename edge_data_t>
-void test_edges()
+void test_edges(bool load_as_undirected = false)
 {
     edge_id_t e_nums_arr[] = {0, 2, 6, 16, 8888, 10000, 20000, 100000};
     vertex_id_t v_num = 1000 + rand() % 1000;
@@ -126,10 +140,16 @@ void test_edges()
     {
         if (get_mpi_rank() == 0)
         {
-            gen_undirected_graph_file<edge_data_t>(v_num, e_num);
+            if (load_as_undirected)
+            {
+                gen_directed_graph_file<edge_data_t>(v_num, e_num);
+            } else
+            {
+                gen_undirected_graph_file<edge_data_t>(v_num, e_num);
+            }
         }
         MPI_Bcast(&v_num, 1, get_mpi_data_type<vertex_id_t>(), 0, MPI_COMM_WORLD);
-        test_static_edge<edge_data_t>(v_num);
+        test_static_edge<edge_data_t>(v_num, load_as_undirected);
     }
     MPI_Barrier(MPI_COMM_WORLD);
     if (get_mpi_rank() == 0)
@@ -138,10 +158,16 @@ void test_edges()
     }
 }
 
-TEST(GraphEngine, StaticGraph)
+TEST(GraphEngine, DefaultLoad)
 {
     test_edges<EmptyData>();
     test_edges<real_t>();
+}
+
+TEST(GraphEngine, LoadAsUndirected)
+{
+    test_edges<EmptyData>(true);
+    test_edges<real_t>(true);
 }
 
 GTEST_API_ int main(int argc, char *argv[])

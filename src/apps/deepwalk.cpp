@@ -29,18 +29,17 @@
 template<typename edge_data_t>
 void run(WalkEngine<edge_data_t, EmptyData> *graph, STruncatedRandomWalkOptionHelper *opt)
 {
-    graph->load_graph(opt->v_num, opt->graph_path.c_str());
+    graph->load_graph(opt->v_num, opt->graph_path.c_str(), opt->make_undirected);
+    WalkConfig walk_conf;
     if (!opt->output_path.empty())
     {
-        graph->set_output();
+        walk_conf.set_output_file(opt->output_path.c_str());
     }
-    deepwalk(graph, opt->walker_num, opt->walk_length);
-    if (!opt->output_path.empty())
+    if (opt->set_rate)
     {
-        PathSet path_data = graph->get_path_data();
-        graph->dump_path_data(path_data, opt->output_path.c_str());
-        graph->free_path_data(path_data);
+        walk_conf.set_walk_rate(opt->rate);
     }
+    deepwalk(graph, opt->walker_num, opt->walk_length, &walk_conf);
 }
 
 int main(int argc, char** argv)

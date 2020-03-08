@@ -105,7 +105,7 @@ std::function<real_t(vertex_id_t, AdjUnit<WeightedTag>*)> get_trivial_static_com
 template<typename edge_data_t>
 void tagwalk(WalkEngine<edge_data_t, TagWalkState>* graph, TagWalkConf conf, tag_t* vertex_tag, int order)
 {
-    graph->set_walkers(
+    WalkerConfig<edge_data_t, TagWalkState> walker_conf(
         conf.walker_num,
         [&] (Walker<TagWalkState> &walker, vertex_id_t start_vertex)
         {
@@ -132,7 +132,7 @@ void tagwalk(WalkEngine<edge_data_t, TagWalkState>* graph, TagWalkConf conf, tag
     };
     if (order == 1) 
     {
-        graph->random_walk(
+        TransitionConfig<edge_data_t, TagWalkState> tr_conf(
             extension_comp,
             static_comp,
             [&] (Walker<TagWalkState>& walker, vertex_id_t vertex, AdjUnit<edge_data_t> *edge)
@@ -150,9 +150,10 @@ void tagwalk(WalkEngine<edge_data_t, TagWalkState>* graph, TagWalkConf conf, tag
             upper_bound_func,
             lower_bound_func
         );
+        graph->random_walk(&walker_conf, &tr_conf);
     } else
     {
-        graph->template second_order_random_walk<EmptyData, tag_t> (
+        SecondOrderTransitionConfig<edge_data_t, TagWalkState, EmptyData, tag_t> tr_conf(
             extension_comp,
             static_comp,
             [&] (Walker<TagWalkState> &walker, walker_id_t walker_idx, vertex_id_t current_v, AdjUnit<edge_data_t> *edge)
@@ -187,6 +188,7 @@ void tagwalk(WalkEngine<edge_data_t, TagWalkState>* graph, TagWalkConf conf, tag
             upper_bound_func,
             lower_bound_func
         );
+        graph->random_walk(&walker_conf, &tr_conf);
     }
 }
 
@@ -398,7 +400,7 @@ void test_bound(vertex_id_t v_num, int worker_number, int order)
     tagwalk(&graph, conf, vertex_tag, order);
 
     std::vector<std::vector<vertex_id_t> > rw_sequences;
-    graph.collect_walk_sequence(rw_sequences);
+    graph.collect_walk_sequence(rw_sequences, conf.walker_num);
 
     if (get_mpi_rank() == 0)
     {

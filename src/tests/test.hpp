@@ -47,7 +47,7 @@
 const char *test_data_file = "746123_embedding_test_temp_data";
 
 template<typename edge_data_t>
-void gen_undirected_graph_file(vertex_id_t v_num, edge_id_t e_num, std::vector<Edge<edge_data_t> > &glb_edges, std::function<void(edge_data_t&)> edge_data_gen_func = nullptr)
+void gen_undirected_graph_file(vertex_id_t v_num, edge_id_t e_num, std::vector<Edge<edge_data_t> > &glb_edges, std::function<void(edge_data_t&)> edge_data_gen_func = nullptr, GraphFormat gf = GF_Binary)
 {
     //bi-directional edge
     assert(e_num % 2 == 0);
@@ -84,19 +84,29 @@ void gen_undirected_graph_file(vertex_id_t v_num, edge_id_t e_num, std::vector<E
         std::swap(e.src, e.dst);
         glb_edges.push_back(e);
     }
-    write_graph(test_data_file, glb_edges.data(), e_num);
     assert(e_num == glb_edges.size());
+    if (gf == GF_Binary)
+    {
+        write_graph(test_data_file, glb_edges.data(), e_num);
+    } else if (gf == GF_Edgelist)
+    {
+        write_edgelist(test_data_file, glb_edges.data(), e_num);
+    } else
+    {
+        fprintf(stderr, "Unsupported graph format");
+        exit(1);
+    }
 }
 
 template<typename edge_data_t>
-void gen_undirected_graph_file(vertex_id_t v_num, edge_id_t e_num, std::function<void(edge_data_t&)> edge_data_gen_func = nullptr)
+void gen_undirected_graph_file(vertex_id_t v_num, edge_id_t e_num, std::function<void(edge_data_t&)> edge_data_gen_func = nullptr, GraphFormat gf = GF_Binary)
 {
     std::vector<Edge<edge_data_t> > es;
-    gen_undirected_graph_file(v_num, e_num, es, edge_data_gen_func);
+    gen_undirected_graph_file(v_num, e_num, es, edge_data_gen_func, gf);
 }
 
 template<typename edge_data_t>
-void gen_directed_graph_file(vertex_id_t v_num, edge_id_t e_num, std::vector<Edge<edge_data_t> > &glb_edges)
+void gen_directed_graph_file(vertex_id_t v_num, edge_id_t e_num, std::vector<Edge<edge_data_t> > &glb_edges, std::function<void(edge_data_t&)> edge_data_gen_func = nullptr, GraphFormat gf = GF_Binary)
 {
     std::set< std::pair<vertex_id_t, vertex_id_t> > filter;
     glb_edges.clear();
@@ -119,18 +129,34 @@ void gen_directed_graph_file(vertex_id_t v_num, edge_id_t e_num, std::vector<Edg
         Edge<edge_data_t> e;
         e.src = s;
         e.dst = t;
-        gen_rand_edge_data<edge_data_t>(e.data);
+        if (edge_data_gen_func != nullptr)
+        {
+            edge_data_gen_func(e.data);
+        } else
+        {
+            gen_rand_edge_data<edge_data_t>(e.data);
+        }
         glb_edges.push_back(e);
     }
-    write_graph(test_data_file, glb_edges.data(), e_num);
     assert(e_num == glb_edges.size());
+    if (gf == GF_Binary)
+    {
+        write_graph(test_data_file, glb_edges.data(), e_num);
+    } else if (gf == GF_Edgelist)
+    {
+        write_edgelist(test_data_file, glb_edges.data(), e_num);
+    } else
+    {
+        fprintf(stderr, "Unsupported graph format\n");
+        exit(1);
+    }
 }
 
 template<typename edge_data_t>
-void gen_directed_graph_file(vertex_id_t v_num, edge_id_t e_num)
+void gen_directed_graph_file(vertex_id_t v_num, edge_id_t e_num, std::function<void(edge_data_t&)> edge_data_gen_func = nullptr, GraphFormat gf = GF_Binary)
 {
     std::vector<Edge<edge_data_t> > es;
-    gen_directed_graph_file(v_num, e_num, es);
+    gen_directed_graph_file(v_num, e_num, es, edge_data_gen_func, gf);
 }
 
 void rm_test_graph_temp_file()

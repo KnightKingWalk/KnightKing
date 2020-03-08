@@ -79,12 +79,15 @@ class GraphOptionHelper : public OptionHelper
 private:
     args::ValueFlag<vertex_id_t> v_num_flag;
     args::ValueFlag<std::string> graph_path_flag;
+    args::Flag make_undirected_flag;
 public:
     vertex_id_t v_num;
     std::string graph_path;
+    bool make_undirected;
     GraphOptionHelper():
         v_num_flag(parser, "vertex", "vertex number", {'v'}),
-        graph_path_flag(parser, "graph", "graph data path", {'g'})
+        graph_path_flag(parser, "graph", "graph data path", {'g'}),
+        make_undirected_flag(parser, "make-undirected", "load graph and treat each edge as undirected edge", {"make-undirected"})
     {}
     virtual void parse(int argc, char **argv)
     {
@@ -95,6 +98,8 @@ public:
 
         assert(graph_path_flag);
         graph_path = args::get(graph_path_flag);
+
+        make_undirected = make_undirected_flag;
     }
 };
 
@@ -103,12 +108,16 @@ class RandomWalkOptionHelper : public GraphOptionHelper
 private:
     args::ValueFlag<walker_id_t> walker_num_flag;
     args::ValueFlag<std::string> output_path_flag;
+    args::ValueFlag<double> rate_flag;
 public:
     walker_id_t walker_num;
     std::string output_path;
+    double rate;
+    bool set_rate;
     RandomWalkOptionHelper() :
         walker_num_flag(parser, "walker", "walker number", {'w'}),
-        output_path_flag(parser, "output", "[optional] the output path. Omit this option for pure random walk performance testing without output.", {'o'})
+        output_path_flag(parser, "output", "[optional] the output path. Omit this option for pure random walk performance testing without output.", {'o'}),
+        rate_flag(parser, "rate", "Set this option will break random walk into multiple iterations to save memory. Each iteration has rate% walkers.", {'r'})
     {}
 
     virtual void parse(int argc, char** argv)
@@ -121,6 +130,15 @@ public:
         if (output_path_flag)
         {
             output_path = args::get(output_path_flag);
+        }
+
+        if (rate_flag)
+        {
+            set_rate = true;
+            rate = args::get(rate_flag);
+        } else
+        {
+            set_rate = false;
         }
     }
 };

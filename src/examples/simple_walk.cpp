@@ -33,22 +33,22 @@ int main(int argc, char** argv)
     opt.parse(argc, argv);
 
     WalkEngine<real_t, EmptyData> graph;
-    graph.load_graph(opt.v_num, opt.graph_path.c_str());
+    graph.load_graph(opt.v_num, opt.graph_path.c_str(), opt.make_undirected);
+    WalkConfig walk_conf;
     if (!opt.output_path.empty())
     {
-        graph.set_output();
+       walk_conf.set_output_file(opt.output_path.c_str()); 
     }
-    graph.set_walkers(opt.walker_num);
+    if (opt.set_rate)
+    {
+        walk_conf.set_walk_rate(opt.rate);
+    }
+    WalkerConfig<real_t, EmptyData> walker_conf(opt.walker_num);
     auto extension_comp = [&] (Walker<EmptyData>& walker, vertex_id_t current_v)
     {
         return 0.875; /*the probability to continue the walk*/
     };
-    graph.random_walk(extension_comp);
-    if (!opt.output_path.empty())
-    {
-        PathSet path_data = graph.get_path_data();
-        graph.dump_path_data(path_data, opt.output_path.c_str());
-        graph.free_path_data(path_data);
-    }
+    TransitionConfig<real_t, EmptyData> tr_conf(extension_comp);
+    graph.random_walk(&walker_conf, &tr_conf, &walk_conf);
     return 0;
 }

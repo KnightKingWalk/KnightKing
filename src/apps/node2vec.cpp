@@ -62,19 +62,18 @@ public:
 template<typename edge_data_t>
 void run(WalkEngine<edge_data_t, Node2vecState> *graph, Node2vecOptionHelper *opt)
 {
-    graph->load_graph(opt->v_num, opt->graph_path.c_str());
+    graph->load_graph(opt->v_num, opt->graph_path.c_str(), opt->make_undirected);
+    WalkConfig walk_conf;
     if (!opt->output_path.empty())
     {
-        graph->set_output();
+        walk_conf.set_output_file(opt->output_path.c_str());
+    }
+    if (opt->set_rate)
+    {
+        walk_conf.set_walk_rate(opt->rate);
     }
     Node2vecConf n2v_conf = opt->get_n2v_conf();
-    node2vec(graph, n2v_conf);
-    if (!opt->output_path.empty())
-    {
-        PathSet path_data = graph->get_path_data();
-        graph->dump_path_data(path_data, opt->output_path.c_str());
-        graph->free_path_data(path_data);
-    }
+    node2vec(graph, n2v_conf, &walk_conf);
 }
 
 int main(int argc, char** argv)
