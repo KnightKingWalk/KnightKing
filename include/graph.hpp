@@ -735,7 +735,7 @@ public:
             {
                 msg_recv_buffer[p_i]->count = 0;
             }
-            std::vector<MPI_Request*> requests;
+            std::vector<MPI_Request*> requests[partition_num];
             auto recv_func = [&] (partition_id_t src)
             {
                 MPI_Status prob_status;
@@ -744,7 +744,7 @@ public:
                 MPI_Get_count(&prob_status, get_mpi_data_type<char>(), &sz);
                 //printf("recv %u <- %u: %zu\n", local_partition_id, src, sz / sizeof(msg_t));
                 MPI_Request *recv_req = new MPI_Request();
-                requests.push_back(recv_req);
+                requests[src].push_back(recv_req);
                 if (zero_copy_data == nullptr)
                 {
                     MPI_Irecv(((msg_t*)msg_recv_buffer[src]->data) + msg_recv_buffer[src]->count, sz, get_mpi_data_type<char>(), src, Tag_Msg, MPI_COMM_WORLD, recv_req);
@@ -764,7 +764,6 @@ public:
                     {
                         partition_id_t src = (partition_num + local_partition_id - step) % partition_num;
                         recv_func(src);
-                        recv_locks[src].unlock();
                     }
                 } else
                 {
@@ -772,11 +771,16 @@ public:
                     recv_func(src);
                 }
             }
-            for (auto req : requests)
+            for (partition_id_t step = 0; step < partition_num; step++)
             {
-                MPI_Status status;
-                MPI_Wait(req, &status);
-                delete req;
+                partition_id_t src = (partition_num + local_partition_id - step) % partition_num;
+                for (auto req : requests[src])
+                {
+                    MPI_Status status;
+                    MPI_Wait(req, &status);
+                    delete req;
+                }
+                recv_locks[src].unlock();
             }
         });
 
