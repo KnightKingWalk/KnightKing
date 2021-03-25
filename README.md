@@ -165,10 +165,11 @@ mpiexec -npernode 1 -hostfile ./hosts ./bin/node2vec -g ./karate.data -v 34 -w 3
 For MPICH:
 
 ```
-mpiexec -np 1 -hostfile ./hosts ./bin/node2vec -g ./karate.data -v 34 -w 34 -s weighted -l 80 -p 2 -q 0.5 -o ./out/walks.txt
+# Substitude "N" in "-np N" with the number of nodes in hosts
+mpiexec -np N -hostfile ./hosts ./bin/node2vec -g ./karate.data -v 34 -w 34 -s weighted -l 80 -p 2 -q 0.5 -o ./out/walks.txt
 ```
 
-The "-npernode 1" or -"np 1" setting is recommended, which tells MPI to instantiate one instance per node. KnightKing will automatically handle the concurrency within each node. Instantiating more than one instances per node may make the graph more fragmented and thus hinge the performance.
+The "-npernode 1" or "-np N" setting is recommended, which tells MPI to instantiate one instance per node. KnightKing will automatically handle the concurrency within each node. Instantiating more than one instances per node may make the graph more fragmented and thus hinge the performance.
 
 See the random walk output:
 
