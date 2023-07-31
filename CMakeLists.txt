@@ -2,6 +2,9 @@ cmake_minimum_required(VERSION 2.8.12)
 
 project(KnightKing)
 
+set(CMAKE_CXX_STANDARD 11)
+set(CMAKE_CXX_STANDARD_REQUIRED ON)
+
 set(KTK_RUNTIME_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/bin)
 option(WITH_TESTS "Build unit test programs" OFF)
 
@@ -28,9 +31,6 @@ if(WITH_TESTS)
     link_directories(${CMAKE_BINARY_DIR}/lib)
     set(GTEST_LIBRARIES "gtest" "gtest_main")
 endif()
-
-#use c++11
-set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -std=c++0x")
 
 set(CMAKE_RUNTIME_OUTPUT_DIRECTORY ${KTK_RUNTIME_OUTPUT_DIRECTORY})
 
